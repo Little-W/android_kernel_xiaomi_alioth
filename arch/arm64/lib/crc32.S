@@ -57,7 +57,6 @@ CPU_BE(	rev		x6, x6		)
 
 32:	ldp		x3, x4, [x1], #32
 	sub		x2, x2, #32
-	b.mi		8f
 	ldp		x5, x6, [x1, #-16]
 CPU_BE(	rev		x3, x3		)
 CPU_BE(	rev		x4, x4		)
