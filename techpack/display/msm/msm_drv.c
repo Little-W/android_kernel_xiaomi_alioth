@@ -72,6 +72,8 @@ wait_queue_head_t resume_wait_q;
 #define IDLE_ENCODER_MASK_DEFAULT	1
 #define IDLE_TIMEOUT_MS_DEFAULT		100
 
+static struct kmem_cache *kmem_vblank_work_pool;
+
 static void msm_fb_output_poll_changed(struct drm_device *dev)
 {
 	struct msm_drm_private *priv = NULL;
