@@ -138,6 +138,8 @@ extern const struct cpumask *const cpu_perfp_mask;
 #define cpu_isolated(cpu)	((cpu) != 0)
 #endif
 
+extern cpumask_t cpus_booted_once_mask;
+
 static inline void cpu_max_bits_warn(unsigned int cpu, unsigned int bits)
 {
 #ifdef CONFIG_DEBUG_PER_CPU_MAPS
