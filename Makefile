@@ -715,7 +715,7 @@ KBUILD_CFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod+fp16 -fno-trapping-ma
 KBUILD_AFLAGS   += -O3 -march=armv8.2-a+lse+crypto+dotprod+fp16
 KBUILD_LDFLAGS  += -O3,-Bsymbolic-functions,--as-needed -mllvm -polly
 else
-KBUILD_CFLAGS   += -O2
+KBUILD_CFLAGS   += -O3
 KBUILD_AFLAGS   += -O2
 KBUILD_LDFLAGS  += -O2
 
