@@ -4602,6 +4602,7 @@ static int __init init_f2fs_fs(void)
 	err = f2fs_init_compress_mempool();
 	if (err)
 		goto free_bioset;
+	f2fs_init_rapid_gc();	
 	err = f2fs_init_compress_cache();
 	if (err)
 		goto free_compress_mempool;
@@ -4648,6 +4649,7 @@ fail:
 
 static void __exit exit_f2fs_fs(void)
 {
+	f2fs_destroy_rapid_gc();
 	f2fs_destroy_casefold_cache();
 	f2fs_destroy_compress_cache();
 	f2fs_destroy_compress_mempool();
