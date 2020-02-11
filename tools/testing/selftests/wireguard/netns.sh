@@ -354,6 +354,14 @@ ip0 -4 route add 192.168.241.1 via 10.0.0.100
 n2 wg set wg0 peer "$pub1" remove
 [[ $(! n0 ping -W 1 -c 1 192.168.241.1 || false) == *"From 10.0.0.100 icmp_seq=1 Destination Host Unreachable"* ]]
 
+# Have ns2 NAT into wg0 packets from ns0, but return an icmp error along the right route.
+n2 iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -d 192.168.241.0/24 -j SNAT --to 192.168.241.2
+n0 iptables -t filter -A INPUT \! -s 10.0.0.0/24 -i vethrs -j DROP # Manual rpfilter just to be explicit.
+n2 bash -c 'printf 1 > /proc/sys/net/ipv4/ip_forward'
+ip0 -4 route add 192.168.241.1 via 10.0.0.100
+n2 wg set wg0 peer "$pub1" remove
+[[ $(! n0 ping -W 1 -c 1 192.168.241.1 || false) == *"From 10.0.0.100 icmp_seq=1 Destination Host Unreachable"* ]]
+
 n0 iptables -t nat -F
 n0 iptables -t filter -F
 n2 iptables -t nat -F
