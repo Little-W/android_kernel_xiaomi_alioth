@@ -778,6 +778,8 @@ static int __init msm_vidc_init(void)
 	
 	init_vidc_kmem_buf_pool();
 
+	init_vidc_kmem_buf_pool();
+
 	vidc_driver = kzalloc(sizeof(*vidc_driver),
 						GFP_KERNEL);
 	if (!vidc_driver) {
