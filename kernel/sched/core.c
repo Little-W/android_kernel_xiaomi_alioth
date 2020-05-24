@@ -2843,6 +2843,11 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 #endif
 	}
 
+	if (p->in_iowait) {
+		delayacct_blkio_end(p);
+		atomic_dec(&task_rq(p)->nr_iowait);
+	}
+
 #ifdef CONFIG_SMP
 	/*
 	 * We're doing the wakeup (@success == 1), they did a dequeue (p->on_rq
