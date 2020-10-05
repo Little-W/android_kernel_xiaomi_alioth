@@ -20,6 +20,9 @@
 #include "sde_dbg.h"
 #include "dsi_mi_feature.h"
 
+#ifdef CONFIG_KLAPSE
+#include <linux/klapse.h>
+#endif
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
@@ -941,6 +944,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		DSI_ERR("Backlight type(%d) not supported\n", bl->type);
 		rc = -ENOTSUPP;
 	}
+	#ifdef CONFIG_KLAPSE
+	set_rgb_slider(bl_lvl);
+	#endif
 
 	if ((mi_cfg->last_bl_level == 0 || (mi_cfg->dimming_state == STATE_DIM_RESTORE)) && bl_lvl) {
 		if (mi_cfg->panel_on_dimming_delay)
