@@ -238,4 +238,7 @@ source "drivers/energy_model/Kconfig"
 source "drivers/mihw/Kconfig"
 
 source "drivers/kernelsu/Kconfig"
+
+source "drivers/video/klapse/Kconfig"
+
 endmenu
