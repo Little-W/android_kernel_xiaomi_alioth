@@ -1,12 +1,31 @@
-BRANCH=android-4.19-stable
-KMI_GENERATION=0
+ARCH=arm64
+BRANCH=android-msm-alioth-4.19
+CROSS_COMPILE=aarch64-linux-gnu-
+CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+CROSS_COMPILE_COMPAT=$CROSS_COMPILE_ARM32
 
 LLVM=1
 DEPMOD=depmod
-CLANG_PREBUILT_BIN=prebuilts-master/clang/host/linux-x86/clang-r416183b/bin
+CLANG_PREBUILT_BIN=~/tc/bin
 BUILDTOOLS_PREBUILT_BIN=build/build-tools/path/linux-x86
 
 EXTRA_CMDS=''
-STOP_SHIP_TRACEPRINTK=1
+LD_LIBRARY_PATH=~/tc/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH
+
+FILES="
+arch/arm64/boot/dtbo.img
+arch/arm64/boot/Image.gz-dtb
+arch/arm64/boot/Image.gz
+arch/arm64/boot/dts/vendor/qcom/*.dtb
+vmlinux
+System.map
+.config
+"
+UNSTRIPPED_MODULES="
+wlan.ko
+"
 IN_KERNEL_MODULES=1
+SKIP_MRPROPER=1
+STOP_SHIP_TRACEPRINTK=1
 DO_NOT_STRIP_MODULES=1
