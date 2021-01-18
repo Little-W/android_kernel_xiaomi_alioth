@@ -2660,11 +2660,15 @@ unsigned long task_util_est(struct task_struct *p);
 static inline bool uclamp_latency_sensitive(struct task_struct *p)
 {
 #ifdef CONFIG_UCLAMP_TASK_GROUP
-	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
+	struct cgroup_subsys_state *css = task_css(p, cpuset_cgrp_id);
 	struct task_group *tg;
 
 	if (!css)
 		return false;
+
+	if (!strlen(css->cgroup->kn->name))
+		return 0;
+
 	tg = container_of(css, struct task_group, css);
 
 	return tg->latency_sensitive;
