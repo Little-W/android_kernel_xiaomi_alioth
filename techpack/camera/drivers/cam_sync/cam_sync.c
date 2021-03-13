@@ -1173,6 +1173,8 @@ static int __init cam_sync_init(void)
 {
 	int rc;
 
+	kmem_payload_pool = KMEM_CACHE(sync_user_payload, SLAB_HWCACHE_ALIGN | SLAB_PANIC);
+
 	rc = platform_device_register(&cam_sync_device);
 	if (rc)
 		return -ENODEV;
