@@ -1298,6 +1298,13 @@ config SCHED_TUNE
 
 	  If unsure, say N.
 
+config SCHED_TUNE_DUMMY
+	bool "Create dummy SCHEDTUNE nodes"
+	depends on SMP
+	depends on !SCHED_TUNE && !CGROUP_SCHEDTUNE
+	help
+	  Create dummy SCHEDTUNE nodes.
+
 config STUNE_ASSIST
 	bool "SchedTune configuration helper"
 	depends on SCHED_TUNE
