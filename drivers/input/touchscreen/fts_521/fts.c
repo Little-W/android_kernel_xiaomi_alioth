@@ -172,7 +172,6 @@ void release_all_touches(struct fts_ts_info *info)
 	input_sync(info->input_dev);
 	input_report_key(info->input_dev, BTN_INFO, 0);
 	input_sync(info->input_dev);
-	lpm_disable_for_dev(false, EVENT_INPUT);
 	info->touch_id = 0;
 	info->touch_skip = 0;
 	info->fod_id = 0;
@@ -3878,8 +3877,6 @@ static void fts_leave_pointer_event_handler(struct fts_ts_info *info,
 		input_report_key(info->input_dev, BTN_TOUCH, touch_condition);
 		if (!touch_condition)
 			input_report_key(info->input_dev, BTN_TOOL_FINGER, 0);
-		lpm_disable_for_dev(false, EVENT_INPUT);
-
 		info->fod_pressed = false;
 		input_report_key(info->input_dev, BTN_INFO, 0);
 
@@ -4549,7 +4546,6 @@ static void fts_ts_sleep_work(struct work_struct *work)
 			logError(1, "%s pm_resume_completion timeout, i2c is closed", tag);
 			pm_relax(info->dev);
 			fts_enableInterrupt(true);
-			lpm_disable_for_dev(false, EVENT_INPUT);
 			return;
 		} else {
 			logError(1, "%s pm_resume_completion be completed, handling irq", tag);
@@ -4604,7 +4600,6 @@ static void fts_ts_sleep_work(struct work_struct *work)
 #endif
 	pm_relax(info->dev);
 	fts_enableInterrupt(true);
-	lpm_disable_for_dev(false, EVENT_INPUT);
 
 	return;
 }
@@ -4644,7 +4639,6 @@ static irqreturn_t fts_event_handler(int irq, void *ts_info)
 	}
 #endif
 
-	lpm_disable_for_dev(true, EVENT_INPUT);
 	info->irq_status = true;
 	error = fts_writeReadU8UX(regAdd, 0, 0, data, FIFO_EVENT_SIZE,
 				  DUMMY_FIFO);
@@ -4689,7 +4683,6 @@ static irqreturn_t fts_event_handler(int irq, void *ts_info)
 	input_sync(info->input_dev);
 	info->irq_status = false;
 	if (!info->touch_id)
-		lpm_disable_for_dev(false, EVENT_INPUT);
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
 	wake_up(&info->wait_queue);
 #endif
@@ -6219,7 +6212,6 @@ static void fts_suspend_work(struct work_struct *work)
 	info->sensor_sleep = true;
 	if (info->gesture_enabled || fts_need_enter_lp_mode())
 		fts_enableInterrupt(true);
-	lpm_disable_for_dev(false, EVENT_INPUT);
 }
 
 #ifdef CONFIG_DRM
