@@ -3876,7 +3876,6 @@ static void fts_leave_pointer_event_handler(struct fts_ts_info *info,
 		input_report_key(info->input_dev, BTN_TOUCH, touch_condition);
 		if (!touch_condition)
 			input_report_key(info->input_dev, BTN_TOOL_FINGER, 0);
-
 		info->fod_pressed = false;
 		input_report_key(info->input_dev, BTN_INFO, 0);
 
