@@ -37,7 +37,6 @@
 #include <soc/qcom/ramdump.h>
 #include <linux/delay.h>
 #include <linux/debugfs.h>
-#include <linux/pm_qos.h>
 #include <linux/stat.h>
 #include <linux/cpumask.h>
 
@@ -470,7 +469,6 @@ struct fastrpc_file {
 	struct hlist_head perf;
 	struct dentry *debugfs_file;
 	struct mutex perf_mutex;
-	struct pm_qos_request pm_qos_req;
 	int qos_request;
 	struct mutex map_mutex;
 	struct mutex internal_map_mutex;
@@ -482,9 +480,6 @@ struct fastrpc_file {
 	uint32_t ws_timeout;
 	/* To indicate attempt has been made to allocate memory for debug_buf */
 	int debug_buf_alloced_attempted;
-	/* Flag to indicate dynamic process creation status*/
-	bool in_process_create;
-	struct completion shutdown;
 };
 
 static struct fastrpc_apps gfa;
@@ -1308,7 +1303,7 @@ static int context_build_overlap(struct smq_invoke_ctx *ctx)
 	int inbufs = REMOTE_SCALARS_INBUFS(ctx->sc);
 	int outbufs = REMOTE_SCALARS_OUTBUFS(ctx->sc);
 	int nbufs = inbufs + outbufs;
-	struct overlap max;
+	struct overlap max = { 0 };
 
 	for (i = 0; i < nbufs; ++i) {
 		ctx->overs[i].start = (uintptr_t)lpra[i].buf.pv;
@@ -1847,8 +1842,7 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 				}
 				offset = buf_page_start(buf) - vma->vm_start;
 				up_read(&current->mm->mmap_sem);
-				VERIFY(err,
-					offset + len <= (uintptr_t)map->size);
+				VERIFY(err, offset < (uintptr_t)map->size);
 				if (err)
 					goto bail;
 			}
@@ -2581,15 +2575,6 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 			int siglen;
 		} inbuf;
 
-		spin_lock(&fl->hlock);
-		if (fl->in_process_create) {
-			err = -EALREADY;
-			pr_err("Already in create init process\n");
-			spin_unlock(&fl->hlock);
-			return err;
-		}
-		fl->in_process_create = true;
-		spin_unlock(&fl->hlock);
 		inbuf.pgid = fl->tgid;
 		inbuf.namelen = strlen(current->comm) + 1;
 		inbuf.filelen = init->filelen;
@@ -2801,11 +2786,6 @@ bail:
 		fastrpc_mmap_free(file, 0);
 		mutex_unlock(&fl->map_mutex);
 	}
-	if (init->flags == FASTRPC_INIT_CREATE) {
-		spin_lock(&fl->hlock);
-		fl->in_process_create = false;
-		spin_unlock(&fl->hlock);
-	}
 	return err;
 }
 
@@ -2973,10 +2953,8 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 	if (err)
 		goto bail;
 	VERIFY(err, fl->apps->channel[fl->cid].issubsystemup == 1);
-	if (err) {
-		wait_for_completion(&fl->shutdown);
+	if (err)
 		goto bail;
-	}
 	tgid = fl->tgid;
 	ra[0].buf.pv = (void *)&tgid;
 	ra[0].buf.len = sizeof(tgid);
@@ -3344,16 +3322,13 @@ static int fastrpc_internal_munmap(struct fastrpc_file *fl,
 		err = -EINVAL;
 		goto bail;
 	}
-
-	if (map) {
-		VERIFY(err, !fastrpc_munmap_on_dsp(fl, map->raddr,
-				map->phys, map->size, map->flags));
-		if (err)
-			goto bail;
-		mutex_lock(&fl->map_mutex);
-		fastrpc_mmap_free(map, 0);
-		mutex_unlock(&fl->map_mutex);
-	}
+	VERIFY(err, !fastrpc_munmap_on_dsp(fl, map->raddr,
+			map->phys, map->size, map->flags));
+	if (err)
+		goto bail;
+	mutex_lock(&fl->map_mutex);
+	fastrpc_mmap_free(map, 0);
+	mutex_unlock(&fl->map_mutex);
 bail:
 	if (err && map) {
 		mutex_lock(&fl->map_mutex);
@@ -3723,7 +3698,6 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	}
 	spin_lock(&fl->hlock);
 	fl->file_close = 1;
-	fl->in_process_create = false;
 	spin_unlock(&fl->hlock);
 	if (!IS_ERR_OR_NULL(fl->init_mem))
 		fastrpc_buf_free(fl->init_mem, 0);
@@ -3772,8 +3746,6 @@ static int fastrpc_device_release(struct inode *inode, struct file *file)
 	struct fastrpc_file *fl = (struct fastrpc_file *)file->private_data;
 
 	if (fl) {
-		if (fl->qos_request && pm_qos_request_active(&fl->pm_qos_req))
-			pm_qos_remove_request(&fl->pm_qos_req);
 		if (fl->debugfs_file != NULL)
 			debugfs_remove(fl->debugfs_file);
 		fastrpc_file_free(fl);
@@ -4125,7 +4097,6 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->cid = -1;
 	fl->dev_minor = dev_minor;
 	fl->init_mem = NULL;
-	fl->in_process_create = false;
 	memset(&fl->perf, 0, sizeof(fl->perf));
 	fl->qos_request = 0;
 	fl->dsp_proc_init = 0;
@@ -4136,7 +4107,6 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	hlist_add_head(&fl->hn, &me->drivers);
 	spin_unlock(&me->hlock);
 	mutex_init(&fl->perf_mutex);
-	init_completion(&fl->shutdown);
 	return 0;
 }
 
@@ -4238,8 +4208,6 @@ static int fastrpc_internal_control(struct fastrpc_file *fl,
 					struct fastrpc_ioctl_control *cp)
 {
 	int err = 0;
-	unsigned int latency;
-	cpumask_t mask;
 	struct fastrpc_apps *me = &gfa;
 	u32 len = me->silvercores.corecount, i = 0;
 
@@ -4251,28 +4219,6 @@ static int fastrpc_internal_control(struct fastrpc_file *fl,
 		goto bail;
 
 	switch (cp->req) {
-	case FASTRPC_CONTROL_LATENCY:
-		latency = cp->lp.enable == FASTRPC_LATENCY_CTRL_ENB ?
-			fl->apps->latency : PM_QOS_DEFAULT_VALUE;
-		VERIFY(err, latency != 0);
-		if (err)
-			goto bail;
-		cpumask_clear(&mask);
-		for (i = 0; i < len; i++)
-			cpumask_set_cpu(me->silvercores.coreno[i], &mask);
-		fl->pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
-		cpumask_copy(&fl->pm_qos_req.cpus_affine, &mask);
-
-		if (!fl->qos_request) {
-			pm_qos_add_request(&fl->pm_qos_req,
-				PM_QOS_CPU_DMA_LATENCY, latency);
-			fl->qos_request = 1;
-		} else
-			pm_qos_update_request(&fl->pm_qos_req, latency);
-
-		/* Ensure CPU feature map updated to DSP for early WakeUp */
-		fastrpc_send_cpuinfo_to_dsp(fl);
-		break;
 	case FASTRPC_CONTROL_KALLOC:
 		cp->kalloc.kalloc_support = 1;
 		break;
@@ -4622,8 +4568,6 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 {
 	struct fastrpc_apps *me = &gfa;
 	struct fastrpc_channel_ctx *ctx;
-	struct fastrpc_file *fl;
-	struct hlist_node *n;
 	struct notif_data *notifdata = (struct notif_data *)data;
 	int cid = -1;
 
@@ -4636,16 +4580,6 @@ static int fastrpc_restart_notifier_cb(struct notifier_block *nb,
 		ctx->ssrcount++;
 		ctx->issubsystemup = 0;
 		mutex_unlock(&me->channel[cid].smd_mutex);
-	} else if (code == SUBSYS_AFTER_SHUTDOWN) {
-		pr_info("adsprpc: %s: %s subsystem is down\n",
-			__func__, gcinfo[cid].subsys);
-		spin_lock(&me->hlock);
-		hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
-			if (fl->cid != cid)
-				continue;
-			complete(&fl->shutdown);
-		}
-		spin_unlock(&me->hlock);
 	} else if (code == SUBSYS_RAMDUMP_NOTIFICATION) {
 		if (cid == RH_CID) {
 			if (me->ramdump_handle)
@@ -5249,7 +5183,6 @@ static struct platform_driver fastrpc_driver = {
 		.name = "fastrpc",
 		.of_match_table = fastrpc_match_table,
 		.suppress_bind_attrs = true,
-		.probe_type = PROBE_FORCE_SYNCHRONOUS,
 	},
 };
 
