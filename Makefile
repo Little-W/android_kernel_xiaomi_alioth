@@ -644,7 +644,7 @@ ifdef CONFIG_LTO_GCC
 LTO_CFLAGS	:= -flto -flto=jobserver -fipa-pta -fno-fat-lto-objects \
 		   -fuse-linker-plugin -fwhole-program -flto-compression-level=3
 KBUILD_CFLAGS	+= $(LTO_CFLAGS)
-LTO_LDFLAGS	:= $(LTO_CFLAGS) -Wno-lto-type-mismatch -Wno-psabi \
+LTO_LDFLAGS	:= $(LTO_CFLAGS) -fipa-pta -Wno-lto-type-mismatch -Wno-psabi \
 		   -Wno-stringop-overflow -Wno-stringop-overread -flinker-output=nolto-rel -O3 \
 		   -Wno-aggressive-loop-optimizations
 LDFINAL		:= $(CONFIG_SHELL) $(srctree)/scripts/gcc-ld $(LTO_LDFLAGS)
