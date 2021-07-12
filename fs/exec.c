@@ -81,6 +81,7 @@ int suid_dumpable = 0;
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
+#define SURFACEFLINGER_BIN_PREFIX "/system/bin/surfaceflinger"
 #define HWCOMPOSER_BIN_PREFIX "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
 void __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
@@ -1863,6 +1864,11 @@ static int __do_execve_file(int fd, struct filename *filename,
 					   strlen(HWCOMPOSER_BIN_PREFIX)))) {
 			current->pc_flags |= PC_PRIME_AFFINE;
 			set_cpus_allowed_ptr(current, cpu_prime_mask);
+		} else if (unlikely(!strncmp(filename->name,
+					   SURFACEFLINGER_BIN_PREFIX,
+					   strlen(SURFACEFLINGER_BIN_PREFIX)))) {
+			current->pc_flags |= PC_PERF_AFFINE;
+			set_cpus_allowed_ptr(current, cpu_perf_mask);
 		}
 	/* execve succeeded */
 	current->fs->in_exec = 0;
