@@ -13,6 +13,7 @@
 
 #include "sched.h"
 
+#include <linux/binfmts.h>
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
