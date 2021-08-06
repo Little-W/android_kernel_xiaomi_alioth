@@ -412,8 +412,6 @@ static struct input_handler cpu_input_boost_input_handler = {
 	.id_table	= cpu_input_boost_ids
 };
 
-extern struct drm_panel *lcd_active_panel;
-
 static int __init cpu_input_boost_init(void)
 {
 	struct boost_drv *b = &boost_drv_g;
@@ -436,14 +434,10 @@ static int __init cpu_input_boost_init(void)
 
 	b->mi_drm_notif.notifier_call = mi_drm_notifier_cb;
 	b->mi_drm_notif.priority = INT_MAX;
-	if (lcd_active_panel) {
-		ret = drm_panel_notifier_register(lcd_active_panel, &b->mi_drm_notif);
-		if (ret) {
-			pr_err("Unable to register fb_notifier: %d\n", ret);
-			goto unregister_handler;
-		}
-	} else {
-		pr_err("lcd_active_panel is null\n");
+	ret = mi_drm_register_client(&b->mi_drm_notif);
+	if (ret) {
+		pr_err("Failed to register mi_drm notifier, err: %d\n", ret);
+		goto unregister_handler;
 	}
 
 	thread = kthread_run_perf_critical(cpu_prime_mask, cpu_boost_thread, b, "cpu_boostd");
