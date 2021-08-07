@@ -36,7 +36,7 @@ struct fscrypt_name {
 	u32 hash;
 	u32 minor_hash;
 	struct fscrypt_str crypto_buf;
-	bool is_ciphertext_name;
+	bool is_nokey_name;
 };
 
 #define FSTR_INIT(n, l)		{ .name = n, .len = l }
@@ -106,15 +106,15 @@ fscrypt_get_dummy_context(struct super_block *sb)
 }
 
 /*
- * When d_splice_alias() moves a directory's encrypted alias to its decrypted
- * alias as a result of the encryption key being added, DCACHE_ENCRYPTED_NAME
- * must be cleared.  Note that we don't have to support arbitrary moves of this
- * flag because fscrypt doesn't allow encrypted aliases to be the source or
- * target of a rename().
+ * When d_splice_alias() moves a directory's no-key alias to its plaintext alias
+ * as a result of the encryption key being added, DCACHE_NOKEY_NAME must be
+ * cleared.  Note that we don't have to support arbitrary moves of this flag
+ * because fscrypt doesn't allow no-key names to be the source or target of a
+ * rename().
  */
 static inline void fscrypt_handle_d_move(struct dentry *dentry)
 {
-	dentry->d_flags &= ~DCACHE_ENCRYPTED_NAME;
+	dentry->d_flags &= ~DCACHE_NOKEY_NAME;
 }
 
 /* crypto.c */
@@ -206,6 +206,7 @@ int fscrypt_fname_disk_to_usr(const struct inode *inode,
 bool fscrypt_match_name(const struct fscrypt_name *fname,
 			const u8 *de_name, u32 de_name_len);
 u64 fscrypt_fname_siphash(const struct inode *dir, const struct qstr *name);
+int fscrypt_d_revalidate(struct dentry *dentry, unsigned int flags);
 
 /* bio.c */
 void fscrypt_decrypt_bio(struct bio *bio);
@@ -468,6 +469,12 @@ static inline u64 fscrypt_fname_siphash(const struct inode *dir,
 {
 	WARN_ON_ONCE(1);
 	return 0;
+}
+
+static inline int fscrypt_d_revalidate(struct dentry *dentry,
+				       unsigned int flags)
+{
+	return 1;
 }
 
 /* bio.c */
