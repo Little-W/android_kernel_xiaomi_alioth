@@ -1,0 +1,155 @@
+#!/bin/bash
+#
+# Copyright (C) 2020 Pig <pig.priv@gmail.com>
+#
+# Copyright (C) 2021 Little-W <1405481963@qq.com>
+#
+# Simple script to import/update kernel modules
+# Version 0.4
+#
+
+source ~/bin/helper
+
+# Aliases
+cai='git commit --amend --no-edit'
+ci='git commit --no-edit'
+ds='drivers/staging'
+f='git fetch caf'
+fn='FETCH_HEAD --no-edit'
+mo='git merge --allow-unrelated-histories -s ours --no-commit FETCH_HEAD'
+ms='git merge -X subtree'
+os='opensource'
+qc='qcom'
+r='git read-tree --prefix'
+caf='https://source.codeaurora.org/quic/la/kernel/msm-'
+rm='https://source.codeaurora.org/quic/la/platform/vendor'
+rma='git remote add caf'
+sa='git subtree add --prefix'
+tp='techpack'
+uf='-u FETCH_HEAD'
+wl=$qc-$os/wlan
+
+# Read git cmd
+function readcmd() {
+	if [ $num != '9' ]; then 	
+   	  if [ $cmd = 's' ]; then
+  	  $f/$mod $br && $sa=$dir caf/$mod $br && $cai
+    	  elif [ $cmd = 'm' ]; then
+      if [ $option = 'u' ]; then
+        $f/$mod $br && $ms=$dir $fn
+      else $f/$mod $br && $mo && $r=$dir $uf && $ci
+      fi
+      else die "Invalid target cmd, aborting!"
+      fi
+	elif [ $num = '9' ]; then 	
+	  $f/$mod $br && $mo
+	fi
+}
+
+# Indicate module directories
+function indicatemodir() {
+if [ $num = '1' ]; then
+    mod=qcacld-3.0
+    elif [ $num = '2' ]; then
+    mod=qca-wifi-host-cmn
+    elif [ $num = '3' ]; then
+    mod=fw-api
+    elif [ $num = '4' ]; then
+    mod=audio-kernel
+    dir=$tp/audio
+    elif [ $num = '5' ]; then
+    mod=data-kernel
+    dir=$tp/data
+    elif [ $num = '6' ]; then
+    mod=camera-kernel
+    dir=$tp/camera
+    elif [ $num = '7' ]; then
+    mod=display-drivers
+    dir=$tp/display
+    elif [ $num = '8' ]; then
+    mod=video-driver
+    dir=$tp/video
+    elif [ $num = '9' ]; then
+	echo "Input linux version (eg: 4.19)"
+	read ver
+	mod=msm-$ver  
+	else die "Invalid target input, aborting!"
+fi
+
+if [ $num -eq '1' ] || [ $num -eq '2' ] || [ $num -eq '3' ]; then
+    dir=$ds/$mod
+fi
+}
+
+# Add remote
+function addremote() {
+    if [ $num -eq '1' ] || [ $num -eq '2' ] || [ $num -eq '3' ]; then
+    $rma/$mod $rm/$wl/$mod
+    elif [ $num -eq '5' ]; then
+    $rma/$mod $rm/$qc-$os/$mod
+    elif [ $num -eq '4' ]|| [ $num -eq '6' ] || [ $num -eq '7' ] || [ $num -eq '8' ] ; then
+    $rma/$mod $rm/$os/$mod
+	elif [ $num -eq '9' ]; then
+	$rma/msm-$ver $caf$ver
+    fi
+}
+
+# Initialize
+function init() {
+header "Available modules"
+info "1.qcacld-3.0\n2.qca-wifi-host-cmn\n3.fw-api\n4.audio-kernel\n5.data-kernel\n6.camera-kernel\n7.display-drivers\n8.video-driver\n9.CAF"
+read -p "Target kernel module: " num
+case $num in 
+    1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9) 
+    read -p "Target tag / branch: " br
+	if [ $num != '9' ]; then 	
+  	  read -p "Import (i) / Update (u): " option
+  	  if [ $option != u ]; then
+  	  read -p "Target cmd: merge (m) subtree (s) " cmd
+   	  fi
+	fi
+esac
+}
+
+# Import modules
+function import() {
+    addremote
+    success "Add remote for target module ${mod} done."
+    case $mod in
+        qcacld-3.0 | qca-wifi-host-cmn | fw-api | audio-kernel | data-kernel | camera-kernel | display-drivers | video-driver | msm-$ver)
+        readcmd
+        success "Import from target ${br} for target ${mod} done."
+    esac
+}
+
+# Update modules
+function update() {
+    case $mod in
+        qcacld-3.0 | qca-wifi-host-cmn | fw-api | audio-kernel | data-kernel | camera-kernel | display-drivers | video-driver | msm-$ver)
+        readcmd
+        success "Update to target ${br} for target module ${mod} done."
+    esac
+}
+
+# Process import or update
+function process() {
+    if [ $num != '9' ]; then 
+    	case $option in
+        i)
+        import
+        ;;
+        u)
+        update
+        ;;
+        *)
+        die "Invalid target option, aborting!"
+        ;;
+    esac
+	elif [ $num = '9' ]; then 
+		import
+ 	fi
+}
+
+init
+indicatemodir
+process
