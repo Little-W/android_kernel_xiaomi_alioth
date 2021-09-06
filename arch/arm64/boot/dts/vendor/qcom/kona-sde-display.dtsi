@@ -1367,6 +1367,31 @@
 	};
 };
 
+&dsi_j1u_42_02_0b_dsc_cmd {
+        qcom,ulps-enabled;
+
+        qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+                                "src_byte_clk0", "src_pixel_clk0",
+                                "shadow_byte_clk0", "shadow_pixel_clk0";
+
+        qcom,mdss-dsi-display-timings {
+                /* 60 Hz */
+                timing@0{
+                        qcom,mdss-dsi-panel-phy-timings = [00 18 06 06 21 20 06
+                                06 04 02 04 00 15 16];
+                        qcom,display-topology = <1 1 1>;
+                        qcom,default-topology-index = <0>;
+                };
+                /* 90 Hz */
+                timing@1{
+                        qcom,mdss-dsi-panel-phy-timings = [00 18 06 06 21 20 06
+                                06 04 02 04 00 15 16];
+                        qcom,display-topology = <1 1 1>;
+                        qcom,default-topology-index = <0>;
+                };
+        };
+};
+
 &dsi_j11_38_08_0a_fhd_cmd {
 	qcom,ulps-enabled;
 
@@ -1379,6 +1404,31 @@
 			qcom,mdss-dsi-panel-phy-timings = [00 24 0A 0A 26 25 09
 				0A 06 03 04 00 1E 1A];
 			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_j1t_38_0c_0a_dsc_cmd {
+	qcom,ulps-enabled;
+
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+				"src_byte_clk0", "src_pixel_clk0",
+				"shadow_byte_clk0", "shadow_pixel_clk0";
+
+	qcom,mdss-dsi-display-timings {
+		/* 60 Hz */
+		timing@0{
+			qcom,mdss-dsi-panel-phy-timings = [00 18 06 06 21 20 06
+				06 04 02 04 00 15 16];
+			qcom,display-topology = <1 1 1>;
+			qcom,default-topology-index = <0>;
+		};
+		/* 90 Hz */
+		timing@1{
+			qcom,mdss-dsi-panel-phy-timings = [00 18 06 06 21 20 06
+				06 04 02 04 00 15 16];
+			qcom,display-topology = <1 1 1>;
 			qcom,default-topology-index = <0>;
 		};
 	};
