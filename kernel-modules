@@ -32,14 +32,16 @@ wl=$qc-$os/wlan
 # Read git cmd
 function readcmd() {
 	if [ $num != '9' ]; then 	
-   	  if [ $cmd = 's' ]; then
-  	  $f/$mod $br && $sa=$dir caf/$mod $br && $cai
-    	  elif [ $cmd = 'm' ]; then
-      if [ $option = 'u' ]; then
+	   if [ $option = 'i' ]; then
+   		 if [ $cmd = 's' ]; then
+  		    $f/$mod $br && $sa=$dir caf/$mod $br && $cai
+    	  	 elif [ $cmd = 'm' ]; then
+     	    $f/$mod $br && $mo && $r=$dir $uf && $ci
+	     else die "Invalid target cmd, aborting!"
+	     fi
+       fi
+	  if [ $option = 'u' ]; then
         $f/$mod $br && $ms=$dir $fn
-      else $f/$mod $br && $mo && $r=$dir $uf && $ci
-      fi
-      else die "Invalid target cmd, aborting!"
       fi
 	elif [ $num = '9' ]; then 	
 	  $f/$mod $br && $mo
