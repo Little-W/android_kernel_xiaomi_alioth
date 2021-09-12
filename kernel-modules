@@ -18,6 +18,7 @@ f='git fetch caf'
 fn='FETCH_HEAD --no-edit'
 mo='git merge --allow-unrelated-histories -s ours --no-commit FETCH_HEAD'
 ms='git merge -X subtree'
+m='git merge FETCH_HEAD'
 os='opensource'
 qc='qcom'
 r='git read-tree --prefix'
@@ -44,7 +45,7 @@ function readcmd() {
         $f/$mod $br && $ms=$dir $fn
       fi
 	elif [ $num = '9' ]; then 	
-	  $f/$mod $br && $mo
+	  $f/$mod $br && $m
 	fi
 }
 
