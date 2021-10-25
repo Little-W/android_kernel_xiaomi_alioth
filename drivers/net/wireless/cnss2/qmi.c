@@ -21,6 +21,7 @@
 #define ELF_BDF_FILE_NAME_J11_INDIA		"bd_j11in.elf"
 #define ELF_BDF_FILE_NAME_J11_GLOBAL		"bd_j11gl.elf"
 
+#define ELF_BDF_FILE_NAME_GF		"bdwlang.elf"
 #define ELF_BDF_FILE_NAME_GLOBAL	 "bd_j1gl.elf"
 #define ELF_BDF_FILE_NAME_INDIA		 "bd_j1in.elf"
 #define ELF_BDF_FILE_NAME_B_BOM		 "bd_j1_b.elf"
@@ -38,11 +39,15 @@
 #define ELF_BDF_FILE_NAME_K11A_INDIA	 "bd_k11ain.elf"
 
 #define ELF_BDF_FILE_NAME_PREFIX	"bdwlan.e"
+#define ELF_BDF_FILE_NAME_GF_PREFIX	"bdwlang.e"
 #define BIN_BDF_FILE_NAME		"bdwlan.bin"
+#define BIN_BDF_FILE_NAME_GF		"bdwlang.bin"
 #define BIN_BDF_FILE_NAME_PREFIX	"bdwlan.b"
+#define BIN_BDF_FILE_NAME_GF_PREFIX	"bdwlang.b"
 #define REGDB_FILE_NAME			"regdb.bin"
 #define REGDB_FILE_NAME_J11		"regdb_j11.bin"
 #define DUMMY_BDF_FILE_NAME		"bdwlan.dmy"
+#define CHIP_ID_GF_MASK			0x10
 
 #define QMI_WLFW_TIMEOUT_MS		(plat_priv->ctrl_params.qmi_timeout)
 #define QMI_WLFW_TIMEOUT_JF		msecs_to_jiffies(QMI_WLFW_TIMEOUT_MS)
