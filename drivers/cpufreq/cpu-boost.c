@@ -14,6 +14,7 @@
 #include <linux/input.h>
 #include <linux/time.h>
 #include <linux/sysfs.h>
+#include <linux/moduleparam.h>
 
 #define cpu_boost_attr_rw(_name)		\
 static struct kobj_attribute _name##_attr =	\
