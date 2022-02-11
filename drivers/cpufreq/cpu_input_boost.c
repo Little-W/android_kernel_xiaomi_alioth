@@ -13,7 +13,6 @@
 #include <drm/drm_notifier_mi.h>
 #include <linux/slab.h>
 #include <linux/version.h>
-#include <drm/drm_panel.h>
 
 /* The sched_param struct is located elsewhere in newer kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -356,8 +355,6 @@ static struct input_handler cpu_input_boost_input_handler = {
 	.name		= "cpu_input_boost_handler",
 	.id_table	= cpu_input_boost_ids
 };
-
-extern struct drm_panel *lcd_active_panel;
 
 static int __init cpu_input_boost_init(void)
 {
