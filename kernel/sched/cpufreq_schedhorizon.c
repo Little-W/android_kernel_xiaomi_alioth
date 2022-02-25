@@ -17,29 +17,29 @@
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
 
-static unsigned int default_efficient_freq_lp[] = {0};
+static unsigned int default_efficient_freq_lp[] = {1708800};
 static u64 default_up_delay_lp[] = {0};
 
-static unsigned int default_efficient_freq_hp[] = {1766400};
+static unsigned int default_efficient_freq_hp[] = {1862400};
 static u64 default_up_delay_hp[] = {100 * NSEC_PER_MSEC};
 
-static unsigned int default_efficient_freq_pr[] = {2073600};
+static unsigned int default_efficient_freq_pr[] = {2265600};
 static u64 default_up_delay_pr[] = {100 * NSEC_PER_MSEC};
 
-#define DEFAULT_RTG_BOOST_FREQ_LP 0
-#define DEFAULT_RTG_BOOST_FREQ_HP 0
-#define DEFAULT_RTG_BOOST_FREQ_PR 0
+#define DEFAULT_RTG_BOOST_FREQ_LP 1804800
+#define DEFAULT_RTG_BOOST_FREQ_HP 2419200
+#define DEFAULT_RTG_BOOST_FREQ_PR 2841600
 
 #define DEFAULT_HISPEED_LOAD_LP 90
-#define DEFAULT_HISPEED_LOAD_HP 50
-#define DEFAULT_HISPEED_LOAD_PR 99
+#define DEFAULT_HISPEED_LOAD_HP 55
+#define DEFAULT_HISPEED_LOAD_PR 95
 
-#define DEFAULT_HISPEED_FREQ_LP 0
+#define DEFAULT_HISPEED_FREQ_LP 1516800
 #define DEFAULT_HISPEED_FREQ_HP 1478400
-#define DEFAULT_HISPEED_FREQ_PR 0
+#define DEFAULT_HISPEED_FREQ_PR 1862400
 
 #define DEFAULT_PL_LP 0
-#define DEFAULT_PL_HP 0
+#define DEFAULT_PL_HP 1
 #define DEFAULT_PL_PR 0
 
 struct sugov_tunables {
