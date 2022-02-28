@@ -1,3 +1,5 @@
+
+
 # SPDX-License-Identifier: GPL-2.0
 #
 # General architecture dependent options
@@ -1020,9 +1022,6 @@ config RELR
 	  format. Requires a compatible linker (LLD supports this feature), as
 	  well as compatible NM and OBJCOPY utilities (llvm-nm and llvm-objcopy
 	  are compatible).
-
-config ARCH_USE_MEMREMAP_PROT
-	bool
 
 source "kernel/gcov/Kconfig"
 
