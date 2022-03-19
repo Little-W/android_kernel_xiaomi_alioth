@@ -71,6 +71,8 @@ int __fsverity_verify_signature(const struct inode *inode, const u8 *signature,
 	err = verify_pkcs7_signature(d, sizeof(*d) + hash_alg->digest_size,
 				     signature, sig_size,
 				     fsverity_keyring,
+
+
 				     VERIFYING_UNSPECIFIED_SIGNATURE,
 				     NULL, NULL);
 	kfree(d);
