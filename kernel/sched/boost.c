@@ -339,10 +339,12 @@ done:
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SCHED_WALT)
 bool sched_boost_top_app(void)
 {
 	bool res = sysctl_sched_boost_top_app > 0
 			&& mi_sched_boost == MI_BOOST;
 	return  res;
 }
+#endif
 #endif
