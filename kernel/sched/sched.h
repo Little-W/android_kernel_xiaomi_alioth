@@ -2836,6 +2836,21 @@ enum sched_boost_policy {
 #define RESTRAINED_BOOST_DISABLE -3
 #define MAX_NUM_BOOST_TYPE (RESTRAINED_BOOST+1)
 
+#if IS_ENABLED(CONFIG_MIHW)
+#define MI_BOOST         4
+#endif
+
+#if IS_ENABLED(CONFIG_MIHW)
+extern unsigned int mi_sched_boost;
+static inline int sched_mi_boost(void)
+{
+	return mi_sched_boost;
+}
+#endif
+
+
+
+
 #ifdef CONFIG_SCHED_WALT
 
 static inline int cluster_first_cpu(struct sched_cluster *cluster)
@@ -2877,9 +2892,7 @@ extern int update_preferred_cluster(struct related_thread_group *grp,
 			struct task_struct *p, u32 old_load, bool from_tick);
 extern void set_preferred_cluster(struct related_thread_group *grp);
 extern void add_new_task_to_grp(struct task_struct *new);
-#if IS_ENABLED(CONFIG_MIHW)
-#define MI_BOOST         4
-#endif
+
 
 static inline bool is_asym_cap_cpu(int cpu)
 {
@@ -3010,13 +3023,7 @@ static inline int sched_boost(void)
 	return sched_boost_type;
 }
 
-#if IS_ENABLED(CONFIG_MIHW)
-extern unsigned int mi_sched_boost;
-static inline int sched_mi_boost(void)
-{
-	return mi_sched_boost;
-}
-#endif
+
 
 static inline bool rt_boost_on_big(void)
 {
@@ -3148,6 +3155,13 @@ static inline bool is_min_capacity_cluster(struct sched_cluster *cluster)
 
 #else	/* CONFIG_SCHED_WALT */
 
+#if IS_ENABLED(CONFIG_MIHW)
+static inline bool sched_boost_top_app(void)
+{
+	return false;
+}
+#endif
+
 #if defined(CONFIG_SCHED_TUNE)
 extern bool task_sched_boost(struct task_struct *p);
 //extern int sync_cgroup_colocation(struct task_struct *p, bool insert);
@@ -3198,12 +3212,7 @@ static inline bool is_full_throttle_boost(void)
 	return false;
 }
 
-#if IS_ENABLED(CONFIG_MIHW)
-static inline bool sched_boost_top_app(void)
-{
-	return false;
-}
-#endif
+
 
 static inline enum sched_boost_policy task_boost_policy(struct task_struct *p)
 {
