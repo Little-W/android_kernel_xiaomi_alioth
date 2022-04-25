@@ -540,8 +540,6 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 		goto out_finish;
 
 	ret = cgroup_attach_task(cgrp, task, threadgroup);
-                cpu_input_boost_kick_max(500);
-                devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW, 500);
 
 out_finish:
 	cgroup_procs_write_finish(task);
