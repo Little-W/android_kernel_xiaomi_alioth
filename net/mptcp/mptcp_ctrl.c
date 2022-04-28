@@ -2069,7 +2069,7 @@ int mptcp_create_master_sk(struct sock *meta_sk, __u64 remote_key,
 {
 	struct tcp_sock *master_tp;
 	struct sock *master_sk;
-	bool found_dup_sk = false;
+
 	if (mptcp_alloc_mpcb(meta_sk, remote_key, mptcp_ver, window))
 		goto err_alloc_mpcb;
 
@@ -2083,7 +2083,7 @@ int mptcp_create_master_sk(struct sock *meta_sk, __u64 remote_key,
 		goto err_add_sock;
 
 	meta_sk->sk_prot->unhash(meta_sk);
-	inet_ehash_nolisten(master_sk,NULL,&found_dup_sk);
+	inet_ehash_nolisten(master_sk, NULL, NULL);
 
 	master_tp->mptcp->init_rcv_wnd = master_tp->rcv_wnd;
 
