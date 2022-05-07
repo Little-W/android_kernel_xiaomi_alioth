@@ -4032,13 +4032,11 @@ static inline bool task_fits_capacity(struct task_struct *p,
 	 * CPU.
 	 */
 	if (capacity_orig_of(task_cpu(p)) > capacity_orig_of(cpu))
-		margin = schedtune_task_boost(p) > 0 &&
-			  !schedtune_prefer_high_cap(p) ?
+		margin = schedtune_task_boost(p) > 0 ?
 			sched_capacity_margin_down_boosted[task_cpu(p)] :
 			sched_capacity_margin_down[task_cpu(p)];
 	else
-		margin = schedtune_task_boost(p) > 0 &&
-			  !schedtune_prefer_high_cap(p) ?
+		margin = schedtune_task_boost(p) > 0 ?
 			sched_capacity_margin_up_boosted[task_cpu(p)] :
 			sched_capacity_margin_up[task_cpu(p)];
 
@@ -7301,12 +7299,6 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 					continue;
 
 				/*
-				 * Skip searching for active CPU for tasks have
-				 * high priority & prefer_high_cap.
-				 */
-				if (prefer_high_cap && p->prio <= DEFAULT_PRIO)
-					continue;
-				/*
 				 * Case A.2: Target ACTIVE CPU
 				 * Favor CPUs with max spare capacity.
 				 */
@@ -7974,14 +7966,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 				}
 			}
 		}
-		if (schedtune_prefer_high_cap(p))
-			/*
-			 * Now let the search in
-			 * select_task_rq_fair continue.
-			 */
-			goto fail;
-		else
-			goto unlock;
+		goto unlock;
 	}
 
 	/* If there is only one sensible candidate, select it now. */
