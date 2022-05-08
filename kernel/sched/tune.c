@@ -100,8 +100,6 @@ struct schedtune {
 	 */
 	bool sched_boost_enabled;
 #ifdef CONFIG_SCHED_WALT
-
-#ifdef CONFIG_SCHED_WALT
 	/*
 	 * Controls whether tasks of this cgroup should be colocated with each
 	 * other and tasks of other cgroups that have the same flag turned on.
