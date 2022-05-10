@@ -580,7 +580,6 @@ static int __init reboot_setup(char *str)
 				break;
 			}
 			break;
-
 		case 'g':
 			*mode = REBOOT_GPIO;
 			break;

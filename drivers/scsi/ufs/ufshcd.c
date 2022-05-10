@@ -4076,9 +4076,6 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		hba->lrb[tag].hpb_ctx_id = MAX_HPB_CONTEXT_ID;
 send_orig_cmd:
 #endif
-	/* Vote PM QoS for the request */
-	ufshcd_vops_pm_qos_req_start(hba, cmd->request);
-
 	WARN_ON(hba->clk_gating.state != CLKS_ON);
 
 	lrbp = &hba->lrb[tag];
@@ -11402,7 +11399,6 @@ int ufshcd_shutdown(struct ufs_hba *hba)
 	/* reqs issued from contexts other than shutdown will fail from now */
 	ufshcd_scsi_unblock_requests(hba);
 	ufshcd_release_all(hba);
-
 	ret = ufshcd_suspend(hba, UFS_SHUTDOWN_PM);
 out:
 	if (ret)

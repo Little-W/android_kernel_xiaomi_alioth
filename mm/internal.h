@@ -204,7 +204,18 @@ struct compact_control {
 	bool whole_zone;		/* Whole zone should/has been scanned */
 	bool contended;			/* Signal lock or sched contention */
 	bool finishing_block;		/* Finishing current pageblock */
+	bool rescan;			/* Rescanning the same pageblock */
 };
+
+/*
+ * Used in direct compaction when a page should be taken from the freelists
+ * immediately when one is created during the free path.
+ */
+struct capture_control {
+	struct compact_control *cc;
+	struct page *page;
+};
+
 
 unsigned long
 isolate_freepages_range(struct compact_control *cc,
