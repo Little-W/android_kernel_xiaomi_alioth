@@ -12,7 +12,6 @@
 #include <linux/f2fs_fs.h>
 #include <linux/seq_file.h>
 #include <linux/unicode.h>
-#include <linux/ioprio.h>
 #include <linux/sysfs.h>
 
 #include "f2fs.h"
@@ -38,7 +37,6 @@ enum {
 	FAULT_INFO_TYPE,	/* struct f2fs_fault_info */
 #endif
 	RESERVED_BLOCKS,	/* struct f2fs_sb_info */
-	CPRC_INFO,	/* struct ckpt_req_control */
 	ATGC_INFO,	/* struct atgc_management */
 };
 
@@ -76,8 +74,6 @@ static unsigned char *__struct_ptr(struct f2fs_sb_info *sbi, int struct_type)
 	else if (struct_type == STAT_INFO)
 		return (unsigned char *)F2FS_STAT(sbi);
 #endif
-	else if (struct_type == CPRC_INFO)
-		return (unsigned char *)&sbi->cprc_info;
 	else if (struct_type == ATGC_INFO)
 		return (unsigned char *)&sbi->am;
 	return NULL;
@@ -290,23 +286,6 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		return len;
 	}
 
-	if (!strcmp(a->attr.name, "ckpt_thread_ioprio")) {
-		struct ckpt_req_control *cprc = &sbi->cprc_info;
-		int len = 0;
-		int class = IOPRIO_PRIO_CLASS(cprc->ckpt_thread_ioprio);
-		int data = IOPRIO_PRIO_DATA(cprc->ckpt_thread_ioprio);
-
-		if (class == IOPRIO_CLASS_RT)
-			len += scnprintf(buf + len, PAGE_SIZE - len, "rt,");
-		else if (class == IOPRIO_CLASS_BE)
-			len += scnprintf(buf + len, PAGE_SIZE - len, "be,");
-		else
-			return -EINVAL;
-
-		len += scnprintf(buf + len, PAGE_SIZE - len, "%d\n", data);
-		return len;
-	}
-
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	if (!strcmp(a->attr.name, "compr_written_block"))
 		return snprintf(buf, PAGE_SIZE, "%llu\n",
@@ -380,38 +359,6 @@ static ssize_t __sbi_store(struct f2fs_attr *a,
 out:
 		up_write(&sbi->sb_lock);
 		return ret ? ret : count;
-	}
-
-	if (!strcmp(a->attr.name, "ckpt_thread_ioprio")) {
-		const char *name = strim((char *)buf);
-		struct ckpt_req_control *cprc = &sbi->cprc_info;
-		int class;
-		long data;
-		int ret;
-
-		if (!strncmp(name, "rt,", 3))
-			class = IOPRIO_CLASS_RT;
-		else if (!strncmp(name, "be,", 3))
-			class = IOPRIO_CLASS_BE;
-		else
-			return -EINVAL;
-
-		name += 3;
-		ret = kstrtol(name, 10, &data);
-		if (ret)
-			return ret;
-		if (data >= IOPRIO_BE_NR || data < 0)
-			return -EINVAL;
-
-		cprc->ckpt_thread_ioprio = IOPRIO_PRIO_VALUE(class, data);
-		if (test_opt(sbi, MERGE_CHECKPOINT)) {
-			ret = set_task_ioprio(cprc->f2fs_issue_ckpt,
-					cprc->ckpt_thread_ioprio);
-			if (ret)
-				return ret;
-		}
-
-		return count;
 	}
 
 	ui = (unsigned int *)(ptr + a->offset);
@@ -796,7 +743,6 @@ F2FS_RW_ATTR(FAULT_INFO_TYPE, f2fs_fault_info, inject_type, inject_type);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, data_io_flag, data_io_flag);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, node_io_flag, node_io_flag);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_urgent_high_remaining, gc_urgent_high_remaining);
-F2FS_RW_ATTR(CPRC_INFO, ckpt_req_control, ckpt_thread_ioprio, ckpt_thread_ioprio);
 F2FS_GENERAL_RO_ATTR(dirty_segments);
 F2FS_GENERAL_RO_ATTR(free_segments);
 F2FS_GENERAL_RO_ATTR(ovp_segments);
@@ -908,7 +854,6 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(data_io_flag),
 	ATTR_LIST(node_io_flag),
 	ATTR_LIST(gc_urgent_high_remaining),
-	ATTR_LIST(ckpt_thread_ioprio),
 	ATTR_LIST(dirty_segments),
 	ATTR_LIST(free_segments),
 	ATTR_LIST(ovp_segments),
