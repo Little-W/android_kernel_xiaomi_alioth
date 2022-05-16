@@ -477,7 +477,7 @@ static int stat_show(struct seq_file *s, void *v)
 		seq_printf(s, "  - %-25s%-10s\n", "cp reason", "counts");
 		for (i = 0; i < NR_CP_REASON_TYPE; i++)
 			if (si->cp_reason_total[i])
-				seq_printf(s, "  - %-25s%-10llu\n", f2fs_cp_reasons[i], si->cp_reason_total[i]);
+				seq_printf(s, "  - %-25s%-10llu\n", cp_reason_string[i], si->cp_reason_total[i]);
 		seq_printf(s, "CP calls: %d (BG: %d)\n",
 				si->cp_count, si->bg_cp_count);
 		seq_printf(s, "  - cp blocks : %u\n", si->meta_count[META_CP]);
