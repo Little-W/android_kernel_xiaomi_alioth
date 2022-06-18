@@ -98,6 +98,7 @@
 #if IS_ENABLED(CONFIG_MIHW)
 #include <linux/cpuset.h>
 #endif
+#include <linux/cpu_input_boost.h>
 #include <linux/devfreq_boost.h>
 #include <linux/cpu_input_boost.h>
 #include <asm/pgtable.h>
@@ -106,7 +107,7 @@
 #include <asm/mmu_context.h>
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
-
+#include <linux/kprofiles.h>
 #include <trace/events/sched.h>
 
 #define CREATE_TRACE_POINTS
@@ -2378,9 +2379,15 @@ long _do_fork(unsigned long clone_flags,
 	int trace = 0;
 	long nr;
 
+	/* Boost CPU to the max for 500 ms when userspace launches an app */
 	if (task_is_zygote(current)) {
-                cpu_input_boost_kick_max(150);
-		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW, 50);
+		if (kp_active_mode() == 3 || kp_active_mode() == 0) {
+			cpu_input_boost_kick_max(500);
+			devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW, 700);
+		} else if (kp_active_mode() == 2) {
+			cpu_input_boost_kick_max(50);
+			devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW, 75);
+		}
 	}
 
 	/*
