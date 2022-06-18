@@ -11,6 +11,7 @@
 #include <drm/drm_notifier_mi.h>
 #include <linux/slab.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/kprofiles.h>
 
 enum {
 	SCREEN_OFF,
@@ -53,9 +54,10 @@ static struct df_boost_drv df_boost_drv_g __read_mostly = {
 		       CONFIG_DEVFREQ_CPU_LLCC_DDR_BW_BOOST_FREQ)
 };
 
+
 static void __devfreq_boost_kick(struct boost_dev *b)
 {
-	if (!READ_ONCE(b->df) || test_bit(SCREEN_OFF, &b->state))
+        if (!READ_ONCE(b->df) || test_bit(SCREEN_OFF, &b->state) || kp_active_mode() == 1)
 		return;
 
 	set_bit(INPUT_BOOST, &b->state);
@@ -79,7 +81,7 @@ static void __devfreq_boost_kick_max(struct boost_dev *b,
 {
 	unsigned long boost_jiffies, curr_expires, new_expires;
 
-	if (!READ_ONCE(b->df) || test_bit(SCREEN_OFF, &b->state))
+	if (!READ_ONCE(b->df) || test_bit(SCREEN_OFF, &b->state) || kp_active_mode() == 1)
 		return;
 
 	boost_jiffies = msecs_to_jiffies(duration_ms);
@@ -142,7 +144,7 @@ static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 	struct devfreq *df = b->df;
 
 	mutex_lock(&df->lock);
-	if (state & BIT(SCREEN_OFF)) {
+	if (!(state & BIT(SCREEN_OFF))) {
 		df->min_freq = df->profile->freq_table[0];
 		df->max_boost = false;
 	} else {
