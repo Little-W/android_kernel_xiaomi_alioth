@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2018-2019 Sultan Alsawaf <sultan@kerneltoast.com>.
@@ -14,6 +15,7 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/sched.h>
+#include <linux/kprofiles.h>
 
 /* The sched_param struct is located elsewhere in newer kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -124,17 +126,20 @@ static unsigned int get_max_boost_freq(struct cpufreq_policy *policy)
 	return min(freq, policy->max);
 }
 
+
 static unsigned int get_min_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
 
 	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
 		freq = cpu_freq_min_little;
-	else if (cpumask_test_cpu(policy->cpu, cpu_perf_mask))
-		freq = cpu_freq_min_big;
-	else
-		freq = cpu_freq_min_prime;
-
+	if (kp_active_mode() != 1) {
+		if (cpumask_test_cpu(policy->cpu, cpu_perf_mask))
+			freq = cpu_freq_min_big;
+		else if (cpumask_test_cpu(policy->cpu, cpu_prime_mask))
+			freq = cpu_freq_min_prime;
+	}
+	
 	return max(freq, policy->cpuinfo.min_freq);
 }
 
