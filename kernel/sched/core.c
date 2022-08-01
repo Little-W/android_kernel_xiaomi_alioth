@@ -869,6 +869,7 @@ unsigned int uclamp_rq_max_value(struct rq *rq, enum uclamp_id clamp_id,
 static inline struct uclamp_se
 uclamp_tg_restrict(struct task_struct *p, enum uclamp_id clamp_id)
 {
+	/* Copy by value as we could modify it */
 	struct uclamp_se uc_req = p->uclamp_req[clamp_id];
 #ifdef CONFIG_UCLAMP_TASK_GROUP
 
@@ -1095,9 +1096,27 @@ static inline void uclamp_rq_dec(struct rq *rq, struct task_struct *p)
 		uclamp_rq_dec_id(rq, p, clamp_id);
 }
 
-static inline void
-uclamp_update_active(struct task_struct *p, enum uclamp_id clamp_id)
+static inline void uclamp_rq_reinc_id(struct rq *rq, struct task_struct *p,
+				      enum uclamp_id clamp_id)
 {
+	if (!p->uclamp[clamp_id].active)
+		return;
+
+	uclamp_rq_dec_id(rq, p, clamp_id);
+	uclamp_rq_inc_id(rq, p, clamp_id);
+
+	/*
+	 * Make sure to clear the idle flag if we've transiently reached 0
+	 * active tasks on rq.
+	 */
+	if (clamp_id == UCLAMP_MAX && (rq->uclamp_flags & UCLAMP_FLAG_IDLE))
+		rq->uclamp_flags &= ~UCLAMP_FLAG_IDLE;
+}
+
+static inline void
+uclamp_update_active(struct task_struct *p)
+{
+	enum uclamp_id clamp_id;
 	struct rq_flags rf;
 	struct rq *rq;
 
@@ -1117,30 +1136,22 @@ uclamp_update_active(struct task_struct *p, enum uclamp_id clamp_id)
 	 * affecting a valid clamp bucket, the next time it's enqueued,
 	 * it will already see the updated clamp bucket value.
 	 */
-	if (p->uclamp[clamp_id].active) {
-		uclamp_rq_dec_id(rq, p, clamp_id);
-		uclamp_rq_inc_id(rq, p, clamp_id);
-	}
+	for_each_clamp_id(clamp_id)
+		uclamp_rq_reinc_id(rq, p, clamp_id);
 
 	task_rq_unlock(rq, p, &rf);
 }
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP
 static inline void
-uclamp_update_active_tasks(struct cgroup_subsys_state *css,
-			   unsigned int clamps)
+uclamp_update_active_tasks(struct cgroup_subsys_state *css)
 {
-	enum uclamp_id clamp_id;
 	struct css_task_iter it;
 	struct task_struct *p;
 
 	css_task_iter_start(css, 0, &it);
-	while ((p = css_task_iter_next(&it))) {
-		for_each_clamp_id(clamp_id) {
-			if ((0x1 << clamp_id) & clamps)
-				uclamp_update_active(p, clamp_id);
-		}
-	}
+	while ((p = css_task_iter_next(&it)))
+		uclamp_update_active(p);
 	css_task_iter_end(&it);
 }
 
@@ -1235,6 +1246,15 @@ static int uclamp_validate(struct task_struct *p,
 	if (upper_bound > SCHED_CAPACITY_SCALE)
 		return -EINVAL;
 
+	/*
+	 * We have valid uclamp attributes; make sure uclamp is enabled.
+	 *
+	 * We need to do that here, because enabling static branches is a
+	 * blocking operation which obviously cannot be done while holding
+	 * scheduler locks.
+	 */
+	static_branch_enable(&sched_uclamp_used);
+
 	return 0;
 }
 
@@ -1298,40 +1318,6 @@ static void uclamp_fork(struct task_struct *p)
 	}
 }
 
-#ifdef CONFIG_SMP
-unsigned int uclamp_task(struct task_struct *p)
-{
-	unsigned long util;
-
-	util = task_util_est(p);
-	util = max(util, uclamp_eff_value(p, UCLAMP_MIN));
-	util = min(util, uclamp_eff_value(p, UCLAMP_MAX));
-
-	return util;
-}
-
-bool uclamp_boosted(struct task_struct *p)
-{
-	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
-}
-
-bool uclamp_latency_sensitive(struct task_struct *p)
-{
-#ifdef CONFIG_UCLAMP_TASK_GROUP
-	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
-	struct task_group *tg;
-
-	if (!css)
-		return false;
-	tg = container_of(css, struct task_group, css);
-
-	return tg->latency_sensitive;
-#else
-	return false;
-#endif
-}
-#endif /* CONFIG_SMP */
-
 static void __init init_uclamp_rq(struct rq *rq)
 {
 	enum uclamp_id clamp_id;
@@ -1343,7 +1329,7 @@ static void __init init_uclamp_rq(struct rq *rq)
 		};
 	}
 
-	rq->uclamp_flags = 0;
+	rq->uclamp_flags = UCLAMP_FLAG_IDLE;
 }
 
 static void __init init_uclamp(void)
@@ -1386,38 +1372,6 @@ static void __setscheduler_uclamp(struct task_struct *p,
 static inline void uclamp_fork(struct task_struct *p) { }
 
 long schedtune_task_margin(struct task_struct *task);
-
-#ifdef CONFIG_SMP
-unsigned int uclamp_task(struct task_struct *p)
-{
-	unsigned long util = task_util_est(p);
-#ifdef CONFIG_SCHED_TUNE
-	long margin = schedtune_task_margin(p);
-
-	trace_sched_boost_task(p, util, margin);
-
-	util += margin;
-#endif
-
-	return util;
-}
-
-bool uclamp_boosted(struct task_struct *p)
-{
-#ifdef CONFIG_SCHED_TUNE
-	return schedtune_task_boost(p) > 0;
-#endif
-	return false;
-}
-
-bool uclamp_latency_sensitive(struct task_struct *p)
-{
-#ifdef CONFIG_SCHED_TUNE
-	return schedtune_prefer_idle(p) != 0;
-#endif
-	return false;
-}
-#endif /* CONFIG_SMP */
 
 static inline void init_uclamp(void) { }
 #endif /* CONFIG_UCLAMP_TASK */
@@ -7907,6 +7861,65 @@ static inline struct task_group *css_tg(struct cgroup_subsys_state *css)
 	return css ? container_of(css, struct task_group, css) : NULL;
 }
 
+#if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
+static void walt_schedgp_attach(struct cgroup_taskset *tset)
+{
+	struct task_struct *task;
+	struct cgroup_subsys_state *css;
+	bool colocate;
+	struct task_group *tg;
+
+	cgroup_taskset_first(tset, &css);
+	tg = css_tg(css);
+
+	colocate = tg->colocate;
+
+	cgroup_taskset_for_each(task, css, tset)
+		sync_cgroup_colocation(task, colocate);
+}
+
+static u64
+sched_boost_override_read(struct cgroup_subsys_state *css,
+					struct cftype *cft)
+{
+	struct task_group *tg = css_tg(css);
+
+	return (u64) tg->sched_boost_no_override;
+}
+
+static int sched_boost_override_write(struct cgroup_subsys_state *css,
+					struct cftype *cft, u64 override)
+{
+	struct task_group *tg = css_tg(css);
+
+	tg->sched_boost_no_override = !!override;
+	return 0;
+}
+
+static u64 sched_colocate_read(struct cgroup_subsys_state *css,
+						struct cftype *cft)
+{
+	struct task_group *tg = css_tg(css);
+
+	return (u64) tg->colocate;
+}
+
+static int sched_colocate_write(struct cgroup_subsys_state *css,
+				struct cftype *cft, u64 colocate)
+{
+	struct task_group *tg = css_tg(css);
+
+	if (tg->colocate_update_disabled)
+		return -EPERM;
+
+	tg->colocate = !!colocate;
+	tg->colocate_update_disabled = true;
+	return 0;
+}
+#else
+static void walt_schedgp_attach(struct cgroup_taskset *tset) { }
+#endif /* CONFIG_SCHED_WALT */
+
 static struct cgroup_subsys_state *
 cpu_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
 {
@@ -8018,6 +8031,8 @@ static void cpu_cgroup_attach(struct cgroup_taskset *tset)
 
 	cgroup_taskset_for_each(task, css, tset)
 		sched_move_task(task);
+
+	walt_schedgp_attach(tset);
 }
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP
@@ -8065,7 +8080,7 @@ static void cpu_util_update_eff(struct cgroup_subsys_state *css)
 		}
 
 		/* Immediately update descendants RUNNABLE tasks */
-		uclamp_update_active_tasks(css, clamps);
+		uclamp_update_active_tasks(css);
 	}
 }
 
@@ -8582,7 +8597,21 @@ static struct cftype cpu_legacy_files[] = {
 		.read_u64 = cpu_uclamp_ls_read_u64,
 		.write_u64 = cpu_uclamp_ls_write_u64,
 	},
-#endif
+#ifdef CONFIG_SCHED_WALT
+	{
+		.name = "uclamp.sched_boost_no_override",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.read_u64 = sched_boost_override_read,
+		.write_u64 = sched_boost_override_write,
+	},
+	{
+		.name = "uclamp.colocate",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.read_u64 = sched_colocate_read,
+		.write_u64 = sched_colocate_write,
+	},
+#endif /* CONFIG_SCHED_WALT */
+#endif /* CONFIG_UCLAMP_TASK_GROUP */
 	{ }	/* Terminate */
 };
 
@@ -8769,7 +8798,21 @@ static struct cftype cpu_files[] = {
 		.read_u64 = cpu_uclamp_ls_read_u64,
 		.write_u64 = cpu_uclamp_ls_write_u64,
 	},
-#endif
+#ifdef CONFIG_SCHED_WALT
+	{
+		.name = "uclamp.sched_boost_no_override",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.read_u64 = sched_boost_override_read,
+		.write_u64 = sched_boost_override_write,
+	},
+	{
+		.name = "uclamp.colocate",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.read_u64 = sched_colocate_read,
+		.write_u64 = sched_colocate_write,
+	},
+#endif /* CONFIG_SCHED_WALT */
+#endif /* CONFIG_UCLAMP_TASK_GROUP */
 	{ }	/* terminate */
 };
 

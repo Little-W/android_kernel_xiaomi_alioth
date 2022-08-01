@@ -421,6 +421,21 @@ struct cfs_bandwidth {
 
 /* Task group related information */
 struct task_group {
+	bool sched_boost_no_override;
+	/*
+	 * Controls whether a cgroup is eligible for sched boost or not. This
+	 * can temporariliy be disabled by the kernel based on the no_override
+	 * flag above.
+	 */
+	bool sched_boost_enabled;
+	/*
+	 * Controls whether tasks of this cgroup should be colocated with each
+	 * other and tasks of other cgroups that have the same flag turned on.
+	 */
+	bool colocate;
+	/* Controls whether further updates are allowed to the colocate flag */
+	bool colocate_update_disabled;
+
 	struct cgroup_subsys_state css;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -2686,9 +2701,47 @@ static inline bool uclamp_is_used(void)
 #endif /* CONFIG_UCLAMP_TASK */
 
 unsigned long task_util_est(struct task_struct *p);
-unsigned int uclamp_task(struct task_struct *p);
-bool uclamp_latency_sensitive(struct task_struct *p);
-bool uclamp_boosted(struct task_struct *p);
+
+static inline bool uclamp_latency_sensitive(struct task_struct *p)
+{
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
+	struct task_group *tg;
+
+	if (!css)
+		return false;
+	tg = container_of(css, struct task_group, css);
+
+	return tg->latency_sensitive;
+#endif /* CONFIG_UCLAMP_TASK_GROUP */
+#ifdef CONFIG_SCHED_TUNE
+	return schedtune_prefer_idle(p) != 0;
+#endif
+}
+
+static inline unsigned int uclamp_task(struct task_struct *p)
+{
+	unsigned long util = task_util_est(p);
+#ifdef CONFIG_SCHED_TUNE
+	long margin = schedtune_task_margin(p);
+
+	trace_sched_boost_task(p, util, margin);
+
+	util += margin;
+#endif
+
+	return util;
+}
+
+static inline bool uclamp_boosted(struct task_struct *p)
+{
+#ifdef CONFIG_SCHED_TUNE
+	return schedtune_task_boost(p) > 0;
+#endif
+#ifdef CONFIG_UCLAMP_TASK
+	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
+#endif
+}
 
 #ifdef arch_scale_freq_capacity
 # ifndef arch_scale_freq_invariant
@@ -3031,9 +3084,9 @@ extern void reset_task_stats(struct task_struct *p);
 extern void clear_top_tasks_bitmap(unsigned long *bitmap);
 
 #if defined(CONFIG_SCHED_TUNE)
-extern bool task_sched_boost(struct task_struct *p);
 extern int sync_cgroup_colocation(struct task_struct *p, bool insert);
 extern bool schedtune_task_colocated(struct task_struct *p);
+extern bool task_sched_boost(struct task_struct *p);
 extern void update_cgroup_boost_settings(void);
 extern void restore_cgroup_boost_settings(void);
 
@@ -3043,13 +3096,31 @@ static inline bool schedtune_task_colocated(struct task_struct *p)
 	return false;
 }
 
+void update_cgroup_boost_settings(void);
+void restore_cgroup_boost_settings(void);
+#endif
+
+#ifdef CONFIG_UCLAMP_TASK_GROUP
 static inline bool task_sched_boost(struct task_struct *p)
 {
-	return true;
+	struct cgroup_subsys_state *css;
+	struct task_group *tg;
+	bool sched_boost_enabled;
+
+	rcu_read_lock();
+	css = task_css(p, cpu_cgrp_id);
+	if (!css) {
+		rcu_read_unlock();
+		return false;
+	}
+	tg = container_of(css, struct task_group, css);
+	sched_boost_enabled = tg->sched_boost_enabled;
+	rcu_read_unlock();
+
+	return sched_boost_enabled;
 }
 
-static inline void update_cgroup_boost_settings(void) { }
-static inline void restore_cgroup_boost_settings(void) { }
+extern int sync_cgroup_colocation(struct task_struct *p, bool insert);
 #endif
 
 extern int alloc_related_thread_groups(void);
@@ -3109,17 +3180,20 @@ void note_task_waking(struct task_struct *p, u64 wallclock);
 
 static inline bool task_placement_boost_enabled(struct task_struct *p)
 {
-	if (task_sched_boost(p))
-		return sched_boost_policy() != SCHED_BOOST_NONE;
+	if (likely(sched_boost_policy() == SCHED_BOOST_NONE))
+		return false;
 
-	return false;
+	return task_sched_boost(p);
 }
 
 static inline enum sched_boost_policy task_boost_policy(struct task_struct *p)
 {
-	enum sched_boost_policy policy = task_sched_boost(p) ?
-							sched_boost_policy() :
-							SCHED_BOOST_NONE;
+	enum sched_boost_policy policy;
+
+	if (likely(sched_boost_policy() == SCHED_BOOST_NONE))
+		return SCHED_BOOST_NONE;
+
+	policy = task_sched_boost(p) ? sched_boost_policy() : SCHED_BOOST_NONE;
 	if (policy == SCHED_BOOST_ON_BIG) {
 		/*
 		 * Filter out tasks less than min task util threshold
@@ -3315,6 +3389,11 @@ static inline void sched_irq_work_queue(struct irq_work *work)
 	else
 		irq_work_queue_on(work, cpumask_any(cpu_online_mask));
 }
+#endif
+#if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
+extern void walt_init_sched_boost(struct task_group *tg);
+#else
+static inline void walt_init_sched_boost(struct task_group *tg) {}
 #endif
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
 void __weak init_task_runtime_info(struct task_struct *tsk)
