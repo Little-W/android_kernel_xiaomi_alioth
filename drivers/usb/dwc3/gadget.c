@@ -1263,18 +1263,11 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 		trb->ctrl |= DWC3_TRB_CTRL_SID_SOFN(stream_id);
 
 	/*
-	 * As per data book 4.2.3.2TRB Control Bit Rules section
-	 *
-	 * The controller autonomously checks the HWO field of a TRB to determine if the
-	 * entire TRB is valid. Therefore, software must ensure that the rest of the TRB
-	 * is valid before setting the HWO field to '1'. In most systems, this means that
-	 * software must update the fourth DWORD of a TRB last.
-	 *
-	 * However there is a possibility of CPU re-ordering here which can cause
-	 * controller to observe the HWO bit set prematurely.
-	 * Add a write memory barrier to prevent CPU re-ordering.
+	 * Ensure that updates of buffer address and size happens
+	 * before we set the DWC3_TRB_CTRL_HWO so that core
+	 * does not process any stale TRB.
 	 */
-	wmb();
+	mb();
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
 
 	dwc3_ep_inc_enq(dep);
@@ -2087,8 +2080,6 @@ static int dwc3_gadget_wakeup_int(struct dwc3 *dwc)
 	switch (link_state) {
 	case DWC3_LINK_STATE_RX_DET:	/* in HS, means Early Suspend */
 	case DWC3_LINK_STATE_U3:	/* in HS, means SUSPEND */
-	case DWC3_LINK_STATE_U2:	/* in HS, means Sleep (L1) */
-	case DWC3_LINK_STATE_RESUME:
 		break;
 	case DWC3_LINK_STATE_U1:
 		if (dwc->gadget.speed != USB_SPEED_SUPER) {
@@ -2962,8 +2953,6 @@ static int dwc3_gadget_init_endpoint(struct dwc3 *dwc, u8 epnum)
 	INIT_LIST_HEAD(&dep->started_list);
 	INIT_LIST_HEAD(&dep->cancelled_list);
 
-	dwc3_debugfs_create_endpoint_dir(dep);
-
 	return 0;
 }
 
@@ -3035,7 +3024,6 @@ static void dwc3_gadget_free_endpoints(struct dwc3 *dwc)
 			list_del(&dep->endpoint.ep_list);
 		}
 
-		debugfs_remove_recursive(debugfs_lookup(dep->name, dwc->root));
 		kfree(dep);
 	}
 }
@@ -3139,6 +3127,7 @@ static int dwc3_gadget_ep_cleanup_completed_request(struct dwc3_ep *dep,
 		struct dwc3_request *req, int status)
 {
 	struct dwc3 *dwc = dep->dwc;
+	int request_status;
 	int ret;
 
 	/*
@@ -3178,7 +3167,35 @@ static int dwc3_gadget_ep_cleanup_completed_request(struct dwc3_ep *dep,
 		req->needs_extra_trb = false;
 	}
 
-	dwc3_gadget_giveback(dep, req, status);
+	/*
+	 * The event status only reflects the status of the TRB with IOC set.
+	 * For the requests that don't set interrupt on completion, the driver
+	 * needs to check and return the status of the completed TRBs associated
+	 * with the request. Use the status of the last TRB of the request.
+	 */
+	if (req->request.no_interrupt) {
+		struct dwc3_trb *trb;
+
+		trb = dwc3_ep_prev_trb(dep, dep->trb_dequeue);
+		switch (DWC3_TRB_SIZE_TRBSTS(trb->size)) {
+		case DWC3_TRBSTS_MISSED_ISOC:
+			/* Isoc endpoint only */
+			request_status = -EXDEV;
+			break;
+		case DWC3_TRB_STS_XFER_IN_PROG:
+			/* Applicable when End Transfer with ForceRM=0 */
+		case DWC3_TRBSTS_SETUP_PENDING:
+			/* Control endpoint only */
+		case DWC3_TRBSTS_OK:
+		default:
+			request_status = 0;
+			break;
+		}
+	} else {
+		request_status = status;
+	}
+
+	dwc3_gadget_giveback(dep, req, request_status);
 
 out:
 	return ret;
@@ -4106,7 +4123,6 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3_event_buffer *evt)
 
 	dwc->bh_handled_evt_cnt[dwc->irq_dbg_index] += (evt->count / 4);
 	evt->count = 0;
-	evt->flags &= ~DWC3_EVENT_PENDING;
 	ret = IRQ_HANDLED;
 
 	/* Unmask interrupt */
@@ -4118,6 +4134,9 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3_event_buffer *evt)
 		dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0), DWC3_GEVNTCOUNT_EHB);
 		dwc3_writel(dwc->regs, DWC3_DEV_IMOD(0), dwc->imod_interval);
 	}
+
+	/* Keep the clearing of DWC3_EVENT_PENDING at the end */
+	evt->flags &= ~DWC3_EVENT_PENDING;
 
 	return ret;
 }

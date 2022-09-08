@@ -561,12 +561,13 @@ static int qrtr_node_enqueue(struct qrtr_node *node, struct sk_buff *skb,
 	hdr->type = cpu_to_le32(type);
 	hdr->src_node_id = cpu_to_le32(from->sq_node);
 	hdr->src_port_id = cpu_to_le32(from->sq_port);
-	if (to->sq_node == QRTR_NODE_BCAST)
+	if (to->sq_node == QRTR_NODE_BCAST) {
 		hdr->dst_node_id = cpu_to_le32(node->nid);
-	else
+		hdr->dst_port_id = cpu_to_le32(QRTR_PORT_CTRL);
+	} else {
 		hdr->dst_node_id = cpu_to_le32(to->sq_node);
-
-	hdr->dst_port_id = cpu_to_le32(to->sq_port);
+		hdr->dst_port_id = cpu_to_le32(to->sq_port);
+	}
 	hdr->size = cpu_to_le32(len);
 	hdr->confirm_rx = !!confirm_rx;
 
@@ -775,8 +776,8 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	const struct qrtr_hdr_v2 *v2;
 	struct sk_buff *skb;
 	struct qrtr_cb *cb;
-	int errcode;
 	size_t size;
+	int errcode;
 	unsigned int ver;
 	size_t hdrlen;
 
@@ -1839,7 +1840,6 @@ static int qrtr_recvmsg(struct socket *sock, struct msghdr *msg,
 		 */
 		memset(addr, 0, sizeof(*addr));
 
-		cb = (struct qrtr_cb *)skb->cb;
 		addr->sq_family = AF_QIPCRTR;
 		addr->sq_node = cb->src_node;
 		addr->sq_port = cb->src_port;

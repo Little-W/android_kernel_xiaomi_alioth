@@ -31,8 +31,8 @@
 #include <linux/relay.h>
 #include <linux/slab.h>
 #include <linux/percpu-rwsem.h>
-#include <uapi/linux/sched/types.h>
 #include <linux/cpuset.h>
+#include <uapi/linux/sched/types.h>
 
 #include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
