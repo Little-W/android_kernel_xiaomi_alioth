@@ -1320,11 +1320,19 @@ config CPUSET_SYSTEM_BG
 	help
 	  The CPU mask to use for the system-background cpuset.
 
+
+config CPUSET_FG_WITH_PID_SHRINK
+	string "Value for 'top-app-pid' cpuset"
+	default "4-7"
+	help
+	  The CPU mask to use for the top-app-pid cpuset
+
 config CPUSET_TOP_APP
 	string "Value for 'top-app' cpuset"
 	default "0-7"
 	help
 	  The CPU mask to use for the top-app cpuset.
+
 
 endif
 

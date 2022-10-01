@@ -64,6 +64,7 @@
 #include <linux/cgroup.h>
 #include <linux/wait.h>
 #include <linux/binfmts.h>
+#include <misc/lyb_taskmmu.h>
 
 DEFINE_STATIC_KEY_FALSE(cpusets_pre_enable_key);
 DEFINE_STATIC_KEY_FALSE(cpusets_enabled_key);
@@ -1805,6 +1806,14 @@ static ssize_t cpuset_write_resmask_wrapper(struct kernfs_open_file *of,
 		{ "system-background",	CONFIG_CPUSET_SYSTEM_BG },
 		{ "top-app",		CONFIG_CPUSET_TOP_APP },
 	};
+	if (lyb_sultan_pid)
+	{
+		cs_targets[4].cpus=CONFIG_CPUSET_FG_WITH_PID_SHRINK;
+	}
+	else 
+	{
+		cs_targets[4].cpus=CONFIG_CPUSET_FG;
+	}
 	struct cpuset *cs = css_cs(of_css(of));
 	int i;
 
