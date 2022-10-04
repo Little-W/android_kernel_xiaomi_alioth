@@ -576,7 +576,22 @@ static void sugov_work(struct kthread_work *work)
 	struct sugov_policy *sg_policy = container_of(work, struct sugov_policy, work);
 
 	mutex_lock(&sg_policy->work_lock);
-	__cpufreq_driver_target(sg_policy->policy, sg_policy->next_freq,
+	if (!screen_on)
+	{
+	   if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) 
+	   {
+		//sg_policy->policy->max=CONFIG_CPU_FREQ_IDLE_PERF;
+		__cpufreq_driver_target(sg_policy->policy, CONFIG_CPU_FREQ_IDLE_PERF,CPUFREQ_RELATION_L);
+
+          } 
+          else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_prime_mask)) 
+	   {
+	       //sg_policy->policy->max=CONFIG_CPU_FREQ_IDLE_PRIME;
+		__cpufreq_driver_target(sg_policy->policy, CONFIG_CPU_FREQ_IDLE_PRIME,CPUFREQ_RELATION_L);
+	   }
+	}
+	else	
+	    __cpufreq_driver_target(sg_policy->policy, sg_policy->next_freq,
 				CPUFREQ_RELATION_L);
 	mutex_unlock(&sg_policy->work_lock);
 }
