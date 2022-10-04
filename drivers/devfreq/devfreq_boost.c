@@ -42,9 +42,13 @@ static void devfreq_max_unboost(struct work_struct *work);
 
 static unsigned long devfreq_boost_freq =
 	CONFIG_DEVFREQ_CPU_LLCC_DDR_BW_BOOST_FREQ;
+static unsigned long devfreq_boost_freq_performance =
+	CONFIG_DEVFREQ_CPU_LLCC_DDR_BW_BOOST_FREQ_PERFORMANCE_MODE;
 static unsigned short devfreq_boost_dur =
 	CONFIG_DEVFREQ_INPUT_BOOST_DURATION_MS;
 
+
+module_param(devfreq_boost_freq_performance, long, 0644);
 module_param(devfreq_boost_freq, long, 0644);
 module_param(devfreq_boost_dur, short, 0644);
 
@@ -150,6 +154,7 @@ static void devfreq_max_unboost(struct work_struct *work)
 	wake_up(&b->boost_waitq);
 }
 
+
 static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 {
 	struct devfreq *df = b->df;
@@ -159,9 +164,24 @@ static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 		df->min_freq = df->profile->freq_table[0];
 		df->max_boost = false;
 	} else {
-		df->min_freq = state & BIT(INPUT_BOOST) ?
-			       min(devfreq_boost_freq, df->max_freq) :
-			       df->profile->freq_table[0];
+		if(kp_active_mode()==0 || kp_active_mode()==2)
+		{
+			df->max_freq = 7980;
+			df->min_freq = state & BIT(INPUT_BOOST) ?
+			       	min(devfreq_boost_freq, df->max_freq) : df->profile->freq_table[0];
+		}
+		else if(kp_active_mode()==3)
+		{
+			df->max_freq = 10437;
+			df->min_freq = state & BIT(INPUT_BOOST) ?
+			       	min(devfreq_boost_freq_performance, df->max_freq) : df->profile->freq_table[0];
+		}
+		else if(kp_active_mode()==1)
+		{
+			df->min_freq = 762;
+			df->max_freq = 2597;
+		}
+			       
 		df->max_boost = state & BIT(MAX_BOOST);
 	}
 	update_devfreq(df);
