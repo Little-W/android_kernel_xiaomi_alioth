@@ -221,12 +221,20 @@ static void update_online_cpu_policy(void)
 
 static void __cpu_input_boost_kick(struct boost_drv *b)
 {
-	if (test_bit(SCREEN_OFF, &b->state))
+	static char multi=1;
+	if (test_bit(SCREEN_OFF, &b->state) )
 		return;
 
 	if (!input_boost_duration)
 		return;
-
+	if (kp_active_mode() == 3)
+	{
+		multi=4;
+	}
+	else
+	{
+		multi=1;
+	}
 	set_bit(INPUT_BOOST, &b->state);
 	
 	#ifdef CONFIG_DYNAMIC_STUNE_BOOST
@@ -236,7 +244,7 @@ static void __cpu_input_boost_kick(struct boost_drv *b)
 	if (dynamic_sched_boost)
 		sched_set_boost(2);
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
-			      msecs_to_jiffies(input_boost_duration))) {
+			      msecs_to_jiffies(input_boost_duration)*multi)) {
 		set_bit(INPUT_BOOST, &b->state);
 		wake_up(&b->boost_waitq);
 	}
@@ -252,6 +260,7 @@ void cpu_input_boost_kick(void)
 static void __cpu_input_boost_kick_max(struct boost_drv *b,
 				       unsigned int duration_ms)
 {
+	
 	unsigned long boost_jiffies, curr_expires, new_expires;
 
 	if (test_bit(SCREEN_OFF, &b->state))
