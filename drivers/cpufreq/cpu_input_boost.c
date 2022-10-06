@@ -16,10 +16,15 @@
 #include <linux/version.h>
 #include <linux/sched.h>
 #include <linux/kprofiles.h>
-
 /* The sched_param struct is located elsewhere in newer kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <uapi/linux/sched/types.h>
+#endif
+
+#if IS_ENABLED(CONFIG_SCHED_WALT)
+#if IS_ENABLED(CONFIG_MIHW)
+extern bool sched_boost_top_app(void);
+#endif
 #endif
 
 static unsigned int input_boost_freq_little __read_mostly =
@@ -232,7 +237,14 @@ static void __cpu_input_boost_kick(struct boost_drv *b)
 	}
 	set_bit(INPUT_BOOST, &b->state);
 	if (dynamic_sched_boost)
+	{
+		#if IS_ENABLED(CONFIG_SCHED_WALT)
+		#if IS_ENABLED(CONFIG_MIHW)
+	       sched_boost_top_app();
+		#endif
+		#endif
 		sched_set_boost(2);
+	}
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
 			      msecs_to_jiffies(input_boost_duration)*multi)) {
 		wake_up(&b->boost_waitq);
