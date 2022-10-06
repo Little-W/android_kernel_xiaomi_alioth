@@ -720,8 +720,8 @@ KBUILD_CFLAGS   += -Os
 KBUILD_AFLAGS   += -Os
 KBUILD_LDFLAGS  += -Os
 else ifeq ($(cc-name),clang)
-KBUILD_CFLAGS   += -O3
-KBUILD_AFLAGS   += -O3
+KBUILD_CFLAGS   += -O3 -march=armv8.2-a+crypto+fp16
+KBUILD_AFLAGS   += -O3 -march=armv8.2-a+crypto+fp16
 KBUILD_LDFLAGS  += -O3
 else
 KBUILD_CFLAGS   += -O2
@@ -746,6 +746,19 @@ endif
 
 endif
 
+ifeq ($(CONFIG_ARCH_KONA), y)
+ifeq ($(cc-name),clang)
+KBUILD_CFLAGS   += -mcpu=cortex-a77+crypto+crc
+KBUILD_AFLAGS   += -mcpu=cortex-a77+crypto+crc
+ifeq ($(CONFIG_LD_IS_LLD), y)
+KBUILD_LDFLAGS  += -mllvm -mcpu=cortex-a77
+endif
+else
+KBUILD_CFLAGS   += -mcpu=cortex-a77.cortex-a55
+KBUILD_AFLAGS   += -mcpu=cortex-a77.cortex-a55
+endif
+endif
+
 # Enable Clang Polly optimizations
 KBUILD_CFLAGS	+= -mllvm -polly \
                    -mllvm -polly-omp-backend=LLVM \
@@ -760,7 +773,15 @@ KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-ast-use-context \
 		   -mllvm -polly-detect-keep-going \
 		   -mllvm -polly-vectorizer=stripmine \
-		   -mllvm -polly-invariant-load-hoisting
+		   -mllvm -polly-invariant-load-hoisting \
+		   -mllvm -polly-run-inliner \
+		   -mllvm -polly-optimizer=isl \
+		   -mllvm -polly-enable-simplify \
+		   -mllvm -polly-vectorizer=polly \
+		   -mllvm -polly-detect-keep-going \
+		   -mllvm -polly-code-generation=full \
+		   -mllvm -polly-isl-arg=--no-schedule-serialize-sccs
+
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
