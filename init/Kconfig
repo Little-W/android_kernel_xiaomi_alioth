@@ -1303,9 +1303,9 @@ config CPUSET_CAMERA
 	help
 	  The CPU mask to use for the camera-daemon cpuset.
 
-config CPUSET_DISPLAY
-	string "Value for 'display' cpuset"
-	default "4-7"
+config CPUSET_GAME
+	string "Value for 'game' cpuset"
+	default "0-7"
 	help
 	  The CPU mask to use for the display cpuset.
 
