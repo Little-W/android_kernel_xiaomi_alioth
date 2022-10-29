@@ -24,7 +24,8 @@ enum sched_boost_policy boost_policy;
 static enum sched_boost_policy boost_policy_dt = SCHED_BOOST_NONE;
 static DEFINE_MUTEX(boost_mutex);
 
-#if defined(CONFIG_UCLAMP_TASK_GROUP)
+#if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
+
 void walt_init_sched_boost(struct task_group *tg)
 {
 	tg->sched_boost_no_override = false;
