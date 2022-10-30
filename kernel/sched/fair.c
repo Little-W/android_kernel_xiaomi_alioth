@@ -7072,7 +7072,7 @@ static int get_start_cpu(struct task_struct *p, bool sync_boost)
 	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
 	int start_cpu = rd->min_cap_orig_cpu;
 	int task_boost = per_task_boost(p);
-	bool boosted = schedtune_task_boost(p) > 0 ||
+	bool boosted = uclamp_boosted(p) > 0 ||
 			task_boost_policy(p) == SCHED_BOOST_ON_BIG ||
 			task_boost == TASK_BOOST_ON_MID;
 	bool task_skip_min = task_skip_min_cpu(p);
@@ -7145,8 +7145,8 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	unsigned long best_active_util = ULONG_MAX;
 	unsigned long best_active_cuml_util = ULONG_MAX;
 	unsigned long best_idle_cuml_util = ULONG_MAX;
-	bool prefer_idle = schedtune_prefer_idle(p);
-	bool boosted;
+	bool prefer_idle = uclamp_latency_sensitive(p);
+	bool boosted = fbt_env->boosted;
 	/* Initialise with deepest possible cstate (INT_MAX) */
 	int shallowest_idle_cstate = INT_MAX;
 	struct sched_domain *start_sd;
@@ -7992,7 +7992,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	u64 start_t = 0;
 	int delta = 0;
 	int task_boost = per_task_boost(p);
-	int boosted = (schedtune_task_boost(p) > 0) || (task_boost > 0);
+	int boosted = (uclamp_boosted(p) > 0) || (task_boost > 0);
 	int start_cpu;
 
 	if (is_many_wakeup(sibling_count_hint) && prev_cpu != cpu &&
