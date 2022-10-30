@@ -382,7 +382,8 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #else
 	freq = map_util_freq(util, freq, max);
 #endif
-	do_freq_limit(sg_policy, &freq, time);
+	if(!cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask))
+		do_freq_limit(sg_policy, &freq, time);
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
