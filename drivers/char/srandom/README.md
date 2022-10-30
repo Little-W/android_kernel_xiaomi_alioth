@@ -49,6 +49,7 @@ To uninstall the kernel module from your system.
 
     make uninstall
 
+
 Ultra High Speed Mode
 ---------------------
 
@@ -56,6 +57,7 @@ Release 1.41+ now includes an Ultra High Speed Mode.  This mode uses the faster 
 ```
 #define ULTRA_HIGH_SPEED_MODE 1
 ```
+
 
 Usage
 -----

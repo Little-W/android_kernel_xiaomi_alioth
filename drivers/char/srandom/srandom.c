@@ -45,7 +45,7 @@
     #define COPY_FROM_USER copy_from_user
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0)
     #define KTIME_GET_NS ktime_get_real_ts64
     #define TIMESPEC timespec64
 #else
@@ -65,7 +65,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 /*
@@ -88,6 +88,7 @@ static int proc_open(struct inode *inode, struct  file *file);
 #if ! ULTRA_HIGH_SPEED_MODE
 static int work_thread(void *data);
 #endif
+
 
 /*
  * Global variables are declared as static, so are global within the file.
@@ -129,6 +130,7 @@ static struct mutex UpArr_mutex;
 static struct mutex Open_mutex;
 static struct mutex ArrBusy_mutex;
 static struct mutex UpPos_mutex;
+
 #if ! ULTRA_HIGH_SPEED_MODE
 static struct task_struct *kthread;
 #endif
@@ -142,7 +144,7 @@ uint64_t (*prngArrays)[numberOfRndArrays + 1];  /* Array of Array of SECURE RND 
 uint16_t ArraysBusyFlags = 0;             /* Binary Flags for Busy Arrays */
 int      arraysBufferPosition = 0;        /* Array reserved to determine which buffer to use */
 uint64_t tm_seed;
-struct   TIMESPEC tsp;
+struct   TIMESPEC ts;
 
 /*
  * Global counters
@@ -171,8 +173,8 @@ int mod_init(void)
         /*
          * Entropy Initialize #1
          */
-        KTIME_GET_NS(&tsp);
-        x    = (uint64_t)tsp.tv_nsec;
+        KTIME_GET_NS(&ts);
+        x    = (uint64_t)ts.tv_nsec;
         s[0] = xorshft64();
         s[1] = xorshft64();
 
@@ -211,10 +213,10 @@ int mod_init(void)
         }
 
 
-        prngArrays = kzalloc((numberOfRndArrays + 1) * rndArraySize * sizeof(uint64_t), GFP_KERNEL);
+        prngArrays = kmalloc((numberOfRndArrays + 1) * rndArraySize * sizeof(uint64_t), GFP_KERNEL);
         while (!prngArrays) {
-                printk(KERN_INFO "[srandom] mod_init kzalloc failed to allocate initial memory.  retrying...\n");
-                prngArrays = kzalloc((numberOfRndArrays + 1) * rndArraySize * sizeof(uint64_t), GFP_KERNEL);
+                printk(KERN_INFO "[srandom] mod_init kmalloc failed to allocate initial memory.  retrying...\n");
+                prngArrays = kmalloc((numberOfRndArrays + 1) * rndArraySize * sizeof(uint64_t), GFP_KERNEL);
         }
 
         /*
@@ -235,7 +237,7 @@ int mod_init(void)
         }
 
         #if ! ULTRA_HIGH_SPEED_MODE
-                kthread = kthread_create(work_thread, NULL, "mykthread");
+                kthread = kthread_create(work_thread, NULL, "srandom-kthread");
                 wake_up_process(kthread);
         #endif
 
@@ -312,7 +314,7 @@ ssize_t sdevice_read(struct file * file, char * buf, size_t requestedCount, loff
         #endif
 
 
-        new_buf = kzalloc((requestedCount + 512) * sizeof(uint8_t), GFP_KERNEL|__GFP_NOWARN);
+        new_buf = kmalloc((requestedCount + 512) * sizeof(uint8_t), GFP_KERNEL|__GFP_NOWARN);
         while (!new_buf) {
                 #ifdef DEBUG_READ
                 printk(KERN_INFO "[srandom] using vmalloc to allocate large blocksize.\n");
@@ -336,7 +338,7 @@ ssize_t sdevice_read(struct file * file, char * buf, size_t requestedCount, loff
                         arraysPosition = 0;
                 }
         }
-    
+
         /*
          * Mark the Arry as busy by setting the flag
          */
@@ -366,7 +368,7 @@ ssize_t sdevice_read(struct file * file, char * buf, size_t requestedCount, loff
          * Send new_buf to device
          */
         ret = COPY_TO_USER(buf, new_buf, requestedCount);
-        
+
         /*
          * Free allocated memory
          */
@@ -375,7 +377,7 @@ ssize_t sdevice_read(struct file * file, char * buf, size_t requestedCount, loff
         } else {
                 kfree(new_buf);
         }
-             
+
 
         /*
          * Clear ArraysBusyFlags
@@ -384,6 +386,7 @@ ssize_t sdevice_read(struct file * file, char * buf, size_t requestedCount, loff
                 return -ERESTARTSYS;
         ArraysBusyFlags -= (1 << arraysPosition);
         mutex_unlock(&ArrBusy_mutex);
+
 
 
         /*
@@ -411,9 +414,9 @@ ssize_t sdevice_write(struct file *file, const char __user *buf, size_t received
         /*
          * Allocate memory to read from device
          */
-        newdata = kzalloc(receivedCount, GFP_KERNEL);
+        newdata = kmalloc(receivedCount, GFP_KERNEL);
         while (!newdata) {
-                newdata = kzalloc(receivedCount, GFP_KERNEL);
+                newdata = kmalloc(receivedCount, GFP_KERNEL);
         }
 
         result = COPY_FROM_USER(newdata, buf, receivedCount);
@@ -484,8 +487,8 @@ void update_sarray(int arraysPosition)
         #ifdef DEBUG_UPDATE_ARRAYS
         printk(KERN_INFO "[srandom] update_sarray arraysPosition:%d, X:%llu, Y:%llu, Z1:%llu, Z2:%llu, Z3:%llu,\n", arraysPosition, X, Y, Z1, Z2, Z3);
         #endif
-
 }
+
 /*
  * Update the sarray with new random numbers.  Ultra High speed mode
  */
@@ -536,29 +539,30 @@ void update_sarray_uhs(int arraysPosition)
 
 }
 
+
 /*
  *  Seeding the xorshft's
  */
  void seed_PRND_s0(void)
  {
-         KTIME_GET_NS(&tsp);
-         s[0] = (s[0] << 31) ^ (uint64_t)tsp.tv_nsec;
+         KTIME_GET_NS(&ts);
+         s[0] = (s[0] << 31) ^ (uint64_t)ts.tv_nsec;
          #ifdef DEBUG_PRNG_SEED
          printk(KERN_INFO "[srandom] seed_PRNG_s0 x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
          #endif
  }
 void seed_PRND_s1(void)
 {
-        KTIME_GET_NS(&tsp);
-        s[1] = (s[1] << 24) ^ (uint64_t)tsp.tv_nsec;
+        KTIME_GET_NS(&ts);
+        s[1] = (s[1] << 24) ^ (uint64_t)ts.tv_nsec;
         #ifdef DEBUG_PRNG_SEED
         printk(KERN_INFO "[srandom] seed_PRNG_s1 x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
         #endif
 }
 void seed_PRND_x(void)
 {
-        KTIME_GET_NS(&tsp);
-        x = (x << 32) ^ (uint64_t)tsp.tv_nsec;
+        KTIME_GET_NS(&ts);
+        x = (x << 32) ^ (uint64_t)ts.tv_nsec;
         #ifdef DEBUG_PRNG_SEED
         printk(KERN_INFO "[srandom] seed_PRNG_x x:%llu, s[0]:%llu, s[1]:%llu\n", x, s[0], s[1]);
         #endif
@@ -690,9 +694,11 @@ int proc_open(struct inode *inode, struct  file *file)
 module_init(mod_init);
 module_exit(mod_exit);
 
+
 /*
  *  Module license information
  */
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_SUPPORTED_DEVICE("/dev/srandom");
