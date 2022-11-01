@@ -28,25 +28,59 @@ enum sched_boost_policy boost_policy;
 static enum sched_boost_policy boost_policy_dt = SCHED_BOOST_NONE;
 static DEFINE_MUTEX(boost_mutex);
 
-#if defined(CONFIG_UCLAMP_TASK_GROUP)
-void walt_init_sched_boost(struct task_group *tg)
+#if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
+
+void walt_init_tg(struct task_group *tg)
 {
-	tg->sched_boost_no_override = false;
-	tg->sched_boost_enabled = true;
-	tg->colocate = false;
-	tg->colocate_update_disabled = false;
+	struct walt_task_group *wtg;
+
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+
+	wtg->colocate = false;
+	wtg->sched_boost_enable[NO_BOOST] = false;
+	wtg->sched_boost_enable[FULL_THROTTLE_BOOST] = true;
+	wtg->sched_boost_enable[CONSERVATIVE_BOOST] = false;
+	wtg->sched_boost_enable[RESTRAINED_BOOST] = false;
+}
+
+void walt_init_topapp_tg(struct task_group *tg)
+{
+	struct walt_task_group *wtg;
+
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+
+	wtg->colocate = true;
+	wtg->sched_boost_enable[NO_BOOST] = false;
+	wtg->sched_boost_enable[FULL_THROTTLE_BOOST] = true;
+	wtg->sched_boost_enable[CONSERVATIVE_BOOST] = true;
+	wtg->sched_boost_enable[RESTRAINED_BOOST] = false;
+}
+
+void walt_init_foreground_tg(struct task_group *tg)
+{
+	struct walt_task_group *wtg;
+
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+
+	wtg->colocate = false;
+	wtg->sched_boost_enable[NO_BOOST] = false;
+	wtg->sched_boost_enable[FULL_THROTTLE_BOOST] = true;
+	wtg->sched_boost_enable[CONSERVATIVE_BOOST] = true;
+	wtg->sched_boost_enable[RESTRAINED_BOOST] = false;
 }
 
 void update_cgroup_boost_settings(void)
 {
 	struct task_group *tg;
+	struct walt_task_group *wtg;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(tg, &task_groups, list) {
-		if (tg->sched_boost_no_override)
+		wtg = (struct walt_task_group *) tg->android_vendor_data1;
+		if (wtg->sched_boost_no_override)
 			continue;
 
-		tg->sched_boost_enabled = false;
+		wtg->sched_boost_enable[sched_boost_type] = false;
 	}
 	rcu_read_unlock();
 }
@@ -54,10 +88,12 @@ void update_cgroup_boost_settings(void)
 void restore_cgroup_boost_settings(void)
 {
 	struct task_group *tg;
-
+	struct walt_task_group *wtg;
 	rcu_read_lock();
-	list_for_each_entry_rcu(tg, &task_groups, list)
-		tg->sched_boost_enabled = true;
+	list_for_each_entry_rcu(tg, &task_groups, list){
+		wtg = (struct walt_task_group *) tg->android_vendor_data1;
+		wtg->sched_boost_enable[sched_boost_type] = true;
+	}
 	rcu_read_unlock();
 }
 #endif

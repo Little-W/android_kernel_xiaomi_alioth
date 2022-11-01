@@ -2317,7 +2317,7 @@ static void walt_cpus_capacity_changed(const cpumask_t *cpus)
 
 
 struct sched_cluster *sched_cluster[NR_CPUS];
-static int num_sched_clusters;
+int num_sched_clusters;
 
 struct list_head cluster_head;
 cpumask_t asym_cap_sibling_cpus = CPU_MASK_NONE;
@@ -2987,31 +2987,6 @@ add_task_to_group(struct task_struct *p, struct related_thread_group *grp)
 	return 0;
 }
 
-#ifdef CONFIG_UCLAMP_TASK_GROUP
-static inline bool uclamp_task_colocated(struct task_struct *p)
-{
-	struct cgroup_subsys_state *css;
-	struct task_group *tg;
-	bool colocate;
-
-	rcu_read_lock();
-	css = task_css(p, cpu_cgrp_id);
-	if (!css) {
-		rcu_read_unlock();
-		return false;
-	}
-	tg = container_of(css, struct task_group, css);
-	colocate = tg->colocate;
-	rcu_read_unlock();
-
-	return colocate;
-}
-#else
-static inline bool uclamp_task_colocated(struct task_struct *p)
-{
-	return false;
-}
-#endif /* CONFIG_UCLAMP_TASK_GROUP */
 
 void add_new_task_to_grp(struct task_struct *new)
 {

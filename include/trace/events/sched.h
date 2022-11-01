@@ -1711,6 +1711,8 @@ TRACE_EVENT(sched_isolate,
 		__entry->time, __entry->isolate)
 );
 
+
+
 #include "walt.h"
 #endif /* CONFIG_SMP */
 #endif /* _TRACE_SCHED_H */

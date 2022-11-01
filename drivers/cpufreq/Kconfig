@@ -402,6 +402,11 @@ config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR
 	  cluster. This frequency needs to be set according to the available
 	  frequencies at cpufreq-table-7 for the prime cores.
 
+
+
+
+
+
 config SCHEDUTIL_DEFAULT_UP_DELAY_LP
 	int "Default multiplicand of the up delay for the lp cluster"
 	default 3
@@ -439,6 +444,14 @@ config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR_WITH_PID_SHRINK
 	help
 	  This sets schedutil's default efficient frequency for the pr
 	  cluster when pid shrink is enabled, usually for gaming use.
+
+config CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
+	bool "use function walt_map_util_freq()"
+	default n
+	depends on CPU_FREQ_GOV_SCHEDUTIL
+	help
+	  Enable backported walt features in schedutil governor.
+
 
 comment "CPU frequency scaling drivers"
 

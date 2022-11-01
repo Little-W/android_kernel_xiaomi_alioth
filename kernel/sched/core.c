@@ -5,6 +5,8 @@
  *
  *  Copyright (C) 1991-2002  Linus Torvalds
  */
+
+
 #include "sched.h"
 
 #include <linux/nospec.h>
@@ -27,8 +29,10 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
-
 #undef CREATE_TRACE_POINTS
+#if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
+#include "walt_ext/include/trace/hooks/sched_ext.h"
+#endif
 #include <trace/events/kperfevents_sched.h>
 #define CREATE_TRACE_POINTS
 DEFINE_TRACE(kperfevents_sched_wait);
@@ -70,6 +74,100 @@ __read_mostly int scheduler_running;
  * default: 0.95s
  */
 int sysctl_sched_rt_runtime = 950000;
+
+
+/*
+ * Serialization rules:
+ *
+ * Lock order:
+ *
+ *   p->pi_lock
+ *     rq->lock
+ *       hrtimer_cpu_base->lock (hrtimer_start() for bandwidth controls)
+ *
+ *  rq1->lock
+ *    rq2->lock  where: rq1 < rq2
+ *
+ * Regular state:
+ *
+ * Normal scheduling state is serialized by rq->lock. __schedule() takes the
+ * local CPU's rq->lock, it optionally removes the task from the runqueue and
+ * always looks at the local rq data structures to find the most elegible task
+ * to run next.
+ *
+ * Task enqueue is also under rq->lock, possibly taken from another CPU.
+ * Wakeups from another LLC domain might use an IPI to transfer the enqueue to
+ * the local CPU to avoid bouncing the runqueue state around [ see
+ * ttwu_queue_wakelist() ]
+ *
+ * Task wakeup, specifically wakeups that involve migration, are horribly
+ * complicated to avoid having to take two rq->locks.
+ *
+ * Special state:
+ *
+ * System-calls and anything external will use task_rq_lock() which acquires
+ * both p->pi_lock and rq->lock. As a consequence the state they change is
+ * stable while holding either lock:
+ *
+ *  - sched_setaffinity()/
+ *    set_cpus_allowed_ptr():	p->cpus_ptr, p->nr_cpus_allowed
+ *  - set_user_nice():		p->se.load, p->*prio
+ *  - __sched_setscheduler():	p->sched_class, p->policy, p->*prio,
+ *				p->se.load, p->rt_priority,
+ *				p->dl.dl_{runtime, deadline, period, flags, bw, density}
+ *  - sched_setnuma():		p->numa_preferred_nid
+ *  - sched_move_task()/
+ *    cpu_cgroup_fork():	p->sched_task_group
+ *  - uclamp_update_active()	p->uclamp*
+ *
+ * p->state <- TASK_*:
+ *
+ *   is changed locklessly using set_current_state(), __set_current_state() or
+ *   set_special_state(), see their respective comments, or by
+ *   try_to_wake_up(). This latter uses p->pi_lock to serialize against
+ *   concurrent self.
+ *
+ * p->on_rq <- { 0, 1 = TASK_ON_RQ_QUEUED, 2 = TASK_ON_RQ_MIGRATING }:
+ *
+ *   is set by activate_task() and cleared by deactivate_task(), under
+ *   rq->lock. Non-zero indicates the task is runnable, the special
+ *   ON_RQ_MIGRATING state is used for migration without holding both
+ *   rq->locks. It indicates task_cpu() is not stable, see task_rq_lock().
+ *
+ * p->on_cpu <- { 0, 1 }:
+ *
+ *   is set by prepare_task() and cleared by finish_task() such that it will be
+ *   set before p is scheduled-in and cleared after p is scheduled-out, both
+ *   under rq->lock. Non-zero indicates the task is running on its CPU.
+ *
+ *   [ The astute reader will observe that it is possible for two tasks on one
+ *     CPU to have ->on_cpu = 1 at the same time. ]
+ *
+ * task_cpu(p): is changed by set_task_cpu(), the rules are:
+ *
+ *  - Don't call set_task_cpu() on a blocked task:
+ *
+ *    We don't care what CPU we're not running on, this simplifies hotplug,
+ *    the CPU assignment of blocked tasks isn't required to be valid.
+ *
+ *  - for try_to_wake_up(), called under p->pi_lock:
+ *
+ *    This allows try_to_wake_up() to only take one rq->lock, see its comment.
+ *
+ *  - for migration called under rq->lock:
+ *    [ see task_on_rq_migrating() in task_rq_lock() ]
+ *
+ *    o move_queued_task()
+ *    o detach_task()
+ *
+ *  - for migration called under double_rq_lock():
+ *
+ *    o __migrate_swap_task()
+ *    o push_rt_task() / pull_rt_task()
+ *    o push_dl_task() / pull_dl_task()
+ *    o dl_task_offline_migration()
+ *
+ */
 
 /*
  * __task_rq_lock - lock the rq @p resides on.
@@ -764,6 +862,23 @@ unsigned int sysctl_sched_uclamp_util_min = SCHED_CAPACITY_SCALE;
 /* Max allowed maximum utilization */
 unsigned int sysctl_sched_uclamp_util_max = SCHED_CAPACITY_SCALE;
 
+/*
+ * By default RT tasks run at the maximum performance point/capacity of the
+ * system. Uclamp enforces this by always setting UCLAMP_MIN of RT tasks to
+ * SCHED_CAPACITY_SCALE.
+ *
+ * This knob allows admins to change the default behavior when uclamp is being
+ * used. In battery powered devices, particularly, running at the maximum
+ * capacity and frequency will increase energy consumption and shorten the
+ * battery life.
+ *
+ * This knob only affects RT tasks that their uclamp_se->user_defined == false.
+ *
+ * This knob will not override the system default sched_util_clamp_min defined
+ * above.
+ */
+unsigned int sysctl_sched_uclamp_util_min_rt_default = SCHED_CAPACITY_SCALE;
+
 /* All clamps are required to be less or equal than these values */
 static struct uclamp_se uclamp_default[UCLAMP_CNT];
 
@@ -866,6 +981,64 @@ unsigned int uclamp_rq_max_value(struct rq *rq, enum uclamp_id clamp_id,
 	return uclamp_idle_value(rq, clamp_id, clamp_value);
 }
 
+static void __uclamp_update_util_min_rt_default(struct task_struct *p)
+{
+	unsigned int default_util_min;
+	struct uclamp_se *uc_se;
+
+	lockdep_assert_held(&p->pi_lock);
+
+	uc_se = &p->uclamp_req[UCLAMP_MIN];
+
+	/* Only sync if user didn't override the default */
+	if (uc_se->user_defined)
+		return;
+
+	default_util_min = sysctl_sched_uclamp_util_min_rt_default;
+	uclamp_se_set(uc_se, default_util_min, false);
+}
+
+static void uclamp_update_util_min_rt_default(struct task_struct *p)
+{
+	struct rq_flags rf;
+	struct rq *rq;
+
+	if (!rt_task(p))
+		return;
+
+	/* Protect updates to p->uclamp_* */
+	rq = task_rq_lock(p, &rf);
+	__uclamp_update_util_min_rt_default(p);
+	task_rq_unlock(rq, p, &rf);
+}
+
+static void uclamp_sync_util_min_rt_default(void)
+{
+	struct task_struct *g, *p;
+
+	/*
+	 * copy_process()			sysctl_uclamp
+	 *					  uclamp_min_rt = X;
+	 *   write_lock(&tasklist_lock)		  read_lock(&tasklist_lock)
+	 *   // link thread			  smp_mb__after_spinlock()
+	 *   write_unlock(&tasklist_lock)	  read_unlock(&tasklist_lock);
+	 *   sched_post_fork()			  for_each_process_thread()
+	 *     __uclamp_sync_rt()		    __uclamp_sync_rt()
+	 *
+	 * Ensures that either sched_post_fork() will observe the new
+	 * uclamp_min_rt or for_each_process_thread() will observe the new
+	 * task.
+	 */
+	read_lock(&tasklist_lock);
+	smp_mb__after_spinlock();
+	read_unlock(&tasklist_lock);
+
+	rcu_read_lock();
+	for_each_process_thread(g, p)
+		uclamp_update_util_min_rt_default(p);
+	rcu_read_unlock();
+}
+
 static inline struct uclamp_se
 uclamp_tg_restrict(struct task_struct *p, enum uclamp_id clamp_id)
 {
@@ -917,6 +1090,12 @@ uclamp_eff_get(struct task_struct *p, enum uclamp_id clamp_id)
 {
 	struct uclamp_se uc_req = uclamp_tg_restrict(p, clamp_id);
 	struct uclamp_se uc_max = uclamp_default[clamp_id];
+	struct uclamp_se uc_eff;
+	int ret = 0;
+
+	trace_android_rvh_uclamp_eff_get(p, clamp_id, &uc_max, &uc_eff, &ret);
+	if (ret)
+		return uc_eff;
 
 	/* System default restrictions always apply */
 	if (unlikely(uc_req.value > uc_max.value))
@@ -937,6 +1116,7 @@ unsigned long uclamp_eff_value(struct task_struct *p, enum uclamp_id clamp_id)
 
 	return (unsigned long)uc_eff.value;
 }
+EXPORT_SYMBOL_GPL(uclamp_eff_value);
 
 /*
  * When a task is enqueued on a rq, the clamp bucket currently defined by the
@@ -1178,12 +1358,13 @@ int sysctl_sched_uclamp_handler(struct ctl_table *table, int write,
 				loff_t *ppos)
 {
 	bool update_root_tg = false;
-	int old_min, old_max;
+	int old_min, old_max, old_min_rt;
 	int result;
 
 	mutex_lock(&uclamp_mutex);
 	old_min = sysctl_sched_uclamp_util_min;
 	old_max = sysctl_sched_uclamp_util_max;
+	old_min_rt = sysctl_sched_uclamp_util_min_rt_default;
 
 	result = proc_dointvec(table, write, buffer, lenp, ppos);
 	if (result)
@@ -1192,7 +1373,9 @@ int sysctl_sched_uclamp_handler(struct ctl_table *table, int write,
 		goto done;
 
 	if (sysctl_sched_uclamp_util_min > sysctl_sched_uclamp_util_max ||
-	    sysctl_sched_uclamp_util_max > SCHED_CAPACITY_SCALE) {
+	    sysctl_sched_uclamp_util_max > SCHED_CAPACITY_SCALE	||
+	    sysctl_sched_uclamp_util_min_rt_default > SCHED_CAPACITY_SCALE) {
+
 		result = -EINVAL;
 		goto undo;
 	}
@@ -1213,6 +1396,11 @@ int sysctl_sched_uclamp_handler(struct ctl_table *table, int write,
 		uclamp_update_root_tg();
 	}
 
+	if (old_min_rt != sysctl_sched_uclamp_util_min_rt_default) {
+		static_branch_enable(&sched_uclamp_used);
+		uclamp_sync_util_min_rt_default();
+	}
+
 	/*
 	 * We update all RUNNABLE tasks only when task groups are in use.
 	 * Otherwise, keep it simple and do just a lazy update at each next
@@ -1224,6 +1412,7 @@ int sysctl_sched_uclamp_handler(struct ctl_table *table, int write,
 undo:
 	sysctl_sched_uclamp_util_min = old_min;
 	sysctl_sched_uclamp_util_max = old_max;
+	sysctl_sched_uclamp_util_min_rt_default = old_min_rt;
 done:
 	mutex_unlock(&uclamp_mutex);
 
@@ -1233,17 +1422,24 @@ done:
 static int uclamp_validate(struct task_struct *p,
 			   const struct sched_attr *attr)
 {
-	unsigned int lower_bound = p->uclamp_req[UCLAMP_MIN].value;
-	unsigned int upper_bound = p->uclamp_req[UCLAMP_MAX].value;
+	int util_min = p->uclamp_req[UCLAMP_MIN].value;
+	int util_max = p->uclamp_req[UCLAMP_MAX].value;
 
-	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN)
-		lower_bound = attr->sched_util_min;
-	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MAX)
-		upper_bound = attr->sched_util_max;
+	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN) {
+		util_min = attr->sched_util_min;
 
-	if (lower_bound > upper_bound)
-		return -EINVAL;
-	if (upper_bound > SCHED_CAPACITY_SCALE)
+		if (util_min + 1 > SCHED_CAPACITY_SCALE + 1)
+			return -EINVAL;
+	}
+
+	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MAX) {
+		util_max = attr->sched_util_max;
+
+		if (util_max + 1 > SCHED_CAPACITY_SCALE + 1)
+			return -EINVAL;
+	}
+
+	if (util_min != -1 && util_max != -1 && util_min > util_max)
 		return -EINVAL;
 
 	/*
@@ -1258,6 +1454,31 @@ static int uclamp_validate(struct task_struct *p,
 	return 0;
 }
 
+static bool uclamp_reset(const struct sched_attr *attr,
+			 enum uclamp_id clamp_id,
+			 struct uclamp_se *uc_se)
+{
+	/* Reset on sched class change for a non user-defined clamp value. */
+	if (likely(!(attr->sched_flags & SCHED_FLAG_UTIL_CLAMP)) &&
+	    !uc_se->user_defined)
+		return true;
+
+	/* Reset on sched_util_{min,max} == -1. */
+	if (clamp_id == UCLAMP_MIN &&
+	    attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN &&
+	    attr->sched_util_min == -1) {
+		return true;
+	}
+
+	if (clamp_id == UCLAMP_MAX &&
+	    attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MAX &&
+	    attr->sched_util_max == -1) {
+		return true;
+	}
+
+	return false;
+}
+
 static void __setscheduler_uclamp(struct task_struct *p,
 				  const struct sched_attr *attr)
 {
@@ -1269,21 +1490,22 @@ static void __setscheduler_uclamp(struct task_struct *p,
 	 */
 	for_each_clamp_id(clamp_id) {
 		struct uclamp_se *uc_se = &p->uclamp_req[clamp_id];
-		unsigned int clamp_value = uclamp_none(clamp_id);
+		unsigned int value;
 
-		/* Keep using defined clamps across class changes */
-		if (uc_se->user_defined)
+		if (!uclamp_reset(attr, clamp_id, uc_se))
 			continue;
 
-		/* By default, RT tasks always get 100% boost */
-		if (sched_feat(SUGOV_RT_MAX_FREQ) &&
-			       unlikely(rt_task(p) &&
-			       clamp_id == UCLAMP_MIN)) {
+		/*
+		 * RT by default have a 100% boost value that could be modified
+		 * at runtime.
+		 */
+		if (unlikely(rt_task(p) && clamp_id == UCLAMP_MIN))
+			value = sysctl_sched_uclamp_util_min_rt_default;
+		else
+			value = uclamp_none(clamp_id);
 
-			clamp_value = uclamp_none(UCLAMP_MAX);
-		}
+		uclamp_se_set(uc_se, value, false);
 
-		uclamp_se_set(uc_se, clamp_value, false);
 	}
 
 	if (likely(!(attr->sched_flags & SCHED_FLAG_UTIL_CLAMP)))
@@ -1291,14 +1513,18 @@ static void __setscheduler_uclamp(struct task_struct *p,
 
 	static_branch_enable(&sched_uclamp_used);
 
-	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN) {
+	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN &&
+	    attr->sched_util_min != -1) {
 		uclamp_se_set(&p->uclamp_req[UCLAMP_MIN],
 			      attr->sched_util_min, true);
+		trace_android_vh_setscheduler_uclamp(p, UCLAMP_MIN, attr->sched_util_min);
 	}
 
-	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MAX) {
+	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MAX &&
+	    attr->sched_util_max != -1) {
 		uclamp_se_set(&p->uclamp_req[UCLAMP_MAX],
 			      attr->sched_util_max, true);
+		trace_android_vh_setscheduler_uclamp(p, UCLAMP_MAX, attr->sched_util_max);
 	}
 }
 
@@ -1306,6 +1532,10 @@ static void uclamp_fork(struct task_struct *p)
 {
 	enum uclamp_id clamp_id;
 
+	/*
+	 * We don't need to hold task_rq_lock() when updating p->uclamp_* here
+	 * as the task is still at its early fork stages.
+	 */
 	for_each_clamp_id(clamp_id)
 		p->uclamp[clamp_id].active = false;
 
@@ -1316,6 +1546,11 @@ static void uclamp_fork(struct task_struct *p)
 		uclamp_se_set(&p->uclamp_req[clamp_id],
 			      uclamp_none(clamp_id), false);
 	}
+}
+
+static void uclamp_post_fork(struct task_struct *p)
+{
+	uclamp_update_util_min_rt_default(p);
 }
 
 static void __init init_uclamp_rq(struct rq *rq)
@@ -1372,7 +1607,7 @@ static void __setscheduler_uclamp(struct task_struct *p,
 static inline void uclamp_fork(struct task_struct *p) { }
 
 long schedtune_task_margin(struct task_struct *task);
-
+static inline void uclamp_post_fork(struct task_struct *p) { }
 static inline void init_uclamp(void) { }
 #endif /* CONFIG_UCLAMP_TASK */
 
@@ -3291,6 +3526,12 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);
 #endif
 	return 0;
+}
+
+
+void sched_post_fork(struct task_struct *p)
+{
+	uclamp_post_fork(p);
 }
 
 unsigned long to_ratio(u64 period, u64 runtime)
@@ -7856,43 +8097,32 @@ void sched_move_task(struct task_struct *tsk)
 	task_rq_unlock(rq, tsk, &rf);
 }
 
-static inline struct task_group *css_tg(struct cgroup_subsys_state *css)
+inline struct task_group *css_tg(struct cgroup_subsys_state *css)
 {
 	return css ? container_of(css, struct task_group, css) : NULL;
 }
 
 #if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
-static void walt_schedgp_attach(struct cgroup_taskset *tset)
-{
-	struct task_struct *task;
-	struct cgroup_subsys_state *css;
-	bool colocate;
-	struct task_group *tg;
 
-	cgroup_taskset_first(tset, &css);
-	tg = css_tg(css);
-
-	colocate = tg->colocate;
-
-	cgroup_taskset_for_each(task, css, tset)
-		sync_cgroup_colocation(task, colocate);
-}
 
 static u64
 sched_boost_override_read(struct cgroup_subsys_state *css,
 					struct cftype *cft)
 {
 	struct task_group *tg = css_tg(css);
-
-	return (u64) tg->sched_boost_no_override;
+	struct walt_task_group *wtg;
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	
+	return (u64) wtg->sched_boost_no_override;
 }
 
 static int sched_boost_override_write(struct cgroup_subsys_state *css,
 					struct cftype *cft, u64 override)
 {
 	struct task_group *tg = css_tg(css);
-
-	tg->sched_boost_no_override = !!override;
+	struct walt_task_group *wtg;
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	wtg->sched_boost_no_override = !!override;
 	return 0;
 }
 
@@ -7900,25 +8130,31 @@ static u64 sched_colocate_read(struct cgroup_subsys_state *css,
 						struct cftype *cft)
 {
 	struct task_group *tg = css_tg(css);
-
-	return (u64) tg->colocate;
+	struct walt_task_group *wtg;
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	return (u64) wtg->colocate;
 }
 
 static int sched_colocate_write(struct cgroup_subsys_state *css,
 				struct cftype *cft, u64 colocate)
 {
 	struct task_group *tg = css_tg(css);
-
-	if (tg->colocate_update_disabled)
+	struct walt_task_group *wtg;
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	if (wtg->colocate_update_disabled)
 		return -EPERM;
 
-	tg->colocate = !!colocate;
-	tg->colocate_update_disabled = true;
+	wtg->colocate = !!colocate;
+	wtg->colocate_update_disabled = true;
 	return 0;
 }
+
+
 #else
-static void walt_schedgp_attach(struct cgroup_taskset *tset) { }
+inline void android_rvh_cpu_cgroup_attach(struct cgroup_taskset *tset) { }
+inline void android_rvh_cpu_cgroup_online(void *unused, struct cgroup_subsys_state *css) { }
 #endif /* CONFIG_SCHED_WALT */
+
 
 static struct cgroup_subsys_state *
 cpu_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
@@ -7956,6 +8192,7 @@ static int cpu_cgroup_css_online(struct cgroup_subsys_state *css)
 	mutex_unlock(&uclamp_mutex);
 #endif
 
+	trace_android_rvh_cpu_cgroup_online(css);
 	return 0;
 }
 
@@ -8021,6 +8258,9 @@ static int cpu_cgroup_can_attach(struct cgroup_taskset *tset)
 		if (ret)
 			break;
 	}
+
+	trace_android_rvh_cpu_cgroup_can_attach(tset, &ret);
+
 	return ret;
 }
 
@@ -8032,7 +8272,7 @@ static void cpu_cgroup_attach(struct cgroup_taskset *tset)
 	cgroup_taskset_for_each(task, css, tset)
 		sched_move_task(task);
 
-	walt_schedgp_attach(tset);
+	trace_android_rvh_cpu_cgroup_attach(tset);
 }
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP
