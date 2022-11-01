@@ -1439,6 +1439,7 @@ static inline u64 scale_exec_time(u64 delta, struct rq *rq)
 	return (delta * rq->task_exec_scale) >> 10;
 }
 
+
 /* Convert busy time to frequency equivalent
  * Assumes load is scaled to 1024
  */
@@ -2258,7 +2259,7 @@ static void walt_cpus_capacity_changed(const cpumask_t *cpus)
 
 
 struct sched_cluster *sched_cluster[NR_CPUS];
-static int num_sched_clusters;
+int num_sched_clusters;
 
 struct list_head cluster_head;
 cpumask_t asym_cap_sibling_cpus = CPU_MASK_NONE;
