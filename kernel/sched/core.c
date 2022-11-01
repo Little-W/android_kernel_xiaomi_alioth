@@ -1663,6 +1663,10 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 {
 	cpumask_copy(&p->cpus_allowed, new_mask);
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	p->pkg.migt.flag &= ~MINOR_TASK;
+	cpumask_copy(&p->pkg.migt.cpus_allowed, new_mask);
+#endif
 }
 
 void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
@@ -2272,6 +2276,27 @@ int select_task_rq(struct task_struct *p, int cpu, int sd_flags, int wake_flags,
 		   int sibling_count_hint)
 {
 	bool allow_isolated = (p->flags & PF_KTHREAD);
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	
+	bool minor_wtask = minor_window_task(p);
+	cpumask_t minor_window_cpumask;
+
+	if (minor_wtask && !(p->pkg.migt.flag & MINOR_TASK)) {
+		p->pkg.migt.flag |= MINOR_TASK;
+		cpumask_copy(&p->pkg.migt.cpus_allowed, &p->cpus_allowed);
+
+		if (get_minor_window_cpumask(p, &minor_window_cpumask)) {
+			cpumask_copy(&p->cpus_allowed, &minor_window_cpumask);
+			p->nr_cpus_allowed = cpumask_weight(&minor_window_cpumask);
+		}
+	}
+
+	if (!minor_wtask && (p->pkg.migt.flag & MINOR_TASK)) {
+		p->pkg.migt.flag &= ~MINOR_TASK;
+		cpumask_copy(&p->cpus_allowed, &p->pkg.migt.cpus_allowed);
+		p->nr_cpus_allowed = cpumask_weight(&p->cpus_allowed);
+	}
+#endif
 	lockdep_assert_held(&p->pi_lock);
 
 	if (p->nr_cpus_allowed > 1)
@@ -3006,7 +3031,9 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->low_latency			= 0;
 #endif
 	INIT_LIST_HEAD(&p->se.group_node);
-
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	init_task_runtime_info(p);
+#endif
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	p->se.cfs_rq			= NULL;
 #endif
@@ -5796,7 +5823,24 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	if (retval)
 		goto out_free_new_mask;
 
-
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	if (minor_window_task(p)) {
+		retval = -EPERM;
+		cpuset_cpus_allowed(p, cpus_allowed);
+		cpumask_and(new_mask, in_mask, cpus_allowed);
+		cpumask_andnot(&allowed_mask, new_mask, cpu_isolated_mask);
+		dest_cpu = cpumask_any_and(cpu_active_mask, &allowed_mask);
+		if (dest_cpu < nr_cpu_ids) {
+			 cpuset_cpus_allowed(p, cpus_allowed);
+			  if (!cpumask_subset(new_mask, cpus_allowed))
+				  cpumask_copy(new_mask, cpus_allowed);
+			  cpumask_copy(&p->pkg.migt.cpus_allowed, new_mask);
+		}
+		p->pkg.migt.flag |= MINOR_TASK;
+		cpumask_copy(&p->pkg.migt.cpus_allowed, new_mask);
+		goto out_free_new_mask;
+	}
+#endif
 	cpuset_cpus_allowed(p, cpus_allowed);
 	cpumask_and(new_mask, in_mask, cpus_allowed);
 	trace_sched_setaffinity(pid, in_mask);

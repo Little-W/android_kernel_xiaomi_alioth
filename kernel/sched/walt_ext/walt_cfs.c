@@ -878,7 +878,13 @@ walt_select_task_rq_fair(void *unused, struct task_struct *p, int prev_cpu,
 
 	sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
 
-
+	if (static_branch_unlikely(&sched_energy_present)) {
+		rcu_read_lock();
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+		wake_render(p);
+#endif
+		rcu_read_unlock();
+	}
 
 	*target_cpu = walt_find_energy_efficient_cpu(p, prev_cpu, sync, sibling_count_hint);
 	if (unlikely(*target_cpu < 0))

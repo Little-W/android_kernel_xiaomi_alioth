@@ -29,6 +29,9 @@
 #include <linux/mm_event.h>
 #include <linux/task_io_accounting.h>
 #include <linux/rseq.h>
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+#include <linux/pkg_stat.h>
+#endif
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -1398,6 +1401,13 @@ struct task_struct {
 	unsigned int			cpux;
 #endif
 
+#ifdef CONFIG_PERF_CRITICAL_RT_TASK
+	unsigned int    		critical_rt_task;
+#endif
+#ifdef CONFIG_SF_BINDER
+	unsigned int			sf_binder_task;
+#endif
+
 #ifdef CONFIG_KASAN
 	unsigned int			kasan_depth;
 #endif
@@ -1510,6 +1520,10 @@ struct task_struct {
 
 	/* 095444fad7e3 ("futex: Replace PF_EXITPIDONE with a state") */
 	ANDROID_KABI_USE(2, unsigned int futex_state);
+
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+struct package_runtime_info pkg;
+#endif
 
 	/*
 	 * f9b0c6c556db ("futex: Add mutex around futex exit")

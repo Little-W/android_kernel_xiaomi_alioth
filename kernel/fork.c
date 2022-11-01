@@ -1882,7 +1882,9 @@ static __latent_entropy struct task_struct *copy_process(
 		goto fork_out;
 
 	cpufreq_task_times_init(p);
-
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	INIT_LIST_HEAD(&p->pkg.list);
+#endif
 	/*
 	 * This _must_ happen before we call free_task(), i.e. before we jump
 	 * to any of the bad_fork_* labels. This is to avoid freeing
@@ -2301,6 +2303,13 @@ bad_fork_cleanup_threadgroup_lock:
 #endif
 	delayacct_tsk_free(p);
 bad_fork_cleanup_count:
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+	if (user_pkg(p->cred->user->uid.val)) {
+		write_lock_irq(&p->cred->user->pkg.lock);
+		list_del(&p->pkg.list);
+		write_unlock_irq(&p->cred->user->pkg.lock);
+	}
+#endif
 	atomic_dec(&p->cred->user->processes);
 	exit_creds(p);
 bad_fork_free:
@@ -2427,6 +2436,12 @@ long _do_fork(unsigned long clone_flags,
 		task_unlock(p);
 	}
 
+#ifdef CONFIG_PERF_CRITICAL_RT_TASK
+	p->critical_rt_task = 0;
+#endif
+#ifdef CONFIG_SF_BINDER
+	p->sf_binder_task = 0;
+#endif
 	wake_up_new_task(p);
 
 	/* forking complete and child started to run, tell ptracer */

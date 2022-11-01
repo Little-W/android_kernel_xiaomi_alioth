@@ -397,8 +397,23 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int final_freq;
 
+
 #ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
     unsigned int freq = walt_map_util_freq(util, sg_policy, max, sg_cpu->cpu);
+
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+
+	unsigned int pkg_freq;
+	pkg_freq = glk_cal_freq(policy, util, max);
+	if (!pkg_freq)
+		pkg_freq = glk_freq_limit(policy, &freq);
+	else
+		sg_policy->need_freq_update = true;
+	freq = min(pkg_freq,freq);
+
+
+#endif
+
 	if(!cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask))
 		do_freq_limit(sg_policy, &freq, time);
 	trace_sugov_next_freq(policy->cpu, util, max, freq);

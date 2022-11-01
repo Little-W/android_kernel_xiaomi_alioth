@@ -1144,6 +1144,26 @@ config MIHW
 
 	  If unsure, say N here.
 
+
+config PACKAGE_RUNTIME_INFO
+	bool "stat:package runtime info on cluster"
+	default n
+	depends on MIHW
+	help
+	  This option can show package runtime info in sup/big/little core.
+
+config PERF_CRITICAL_RT_TASK
+	bool "enable set rt binder thread" if EXPERT
+	default n
+	help
+	  speedui feature set BlastBufferQueue binder thread FIFO.
+	  
+config SF_BINDER
+	default n
+	bool "surfaceflinger binder thread" if EXPERT
+	help
+	  Xiaomi restore surfaceflinger binder prio FIFO
+	  
 config PERF_HUMANTASK
 	bool "enable feature humantask"
 	depends on MIHW && MILLET

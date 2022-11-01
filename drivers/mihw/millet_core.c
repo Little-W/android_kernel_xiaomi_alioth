@@ -27,9 +27,11 @@ unsigned long binder_warn_ahead_space = WARN_AHEAD_SPACE;
 static struct millet_sock millet_sk;
 struct proc_dir_entry *millet_rootdir;
 static unsigned int millet_debug;
+static int millet_freeze_switch;
 module_param(millet_debug, uint, 0644);
 module_param(frozen_uid_min, uint, 0644);
 module_param(binder_warn_ahead_space, ulong, 0644);
+module_param(millet_freeze_switch, int, 0660);
 enum MILLET_VERSION millet_v= VERSION_1_0;
 
 static void dump_send_msg(struct millet_data *msg)
@@ -67,6 +69,10 @@ static void dump_recv_msg(struct millet_userconf *msg)
 	pr_info("dest_port: 0x%x\n", msg->dst_port);
 }
 
+bool judge_millet_freeze_switch(void)
+{
+	return 1 == millet_freeze_switch;
+}
 
 int millet_can_attach(struct cgroup_taskset *tset)
 {

@@ -3471,3 +3471,19 @@ extern void walt_init_sched_boost(struct task_group *tg);
 #else
 static inline void walt_init_sched_boost(struct task_group *tg) {}
 #endif
+
+#ifdef CONFIG_PACKAGE_RUNTIME_INFO
+static __inline__ void wake_render(struct task_struct *p)
+{
+	if (is_render_thread(p))
+		current->pkg.migt.wake_render++;
+}
+unsigned long glk_cal_freq(struct cpufreq_policy *policy,
+		unsigned long util, unsigned long max);
+unsigned int glk_freq_limit(struct cpufreq_policy *policy,
+		unsigned int *target_freq);
+void __weak init_task_runtime_info(struct task_struct *tsk)
+{
+	return;
+}
+#endif
