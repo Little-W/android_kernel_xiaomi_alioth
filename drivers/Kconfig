@@ -236,4 +236,5 @@ source "drivers/gpu/msm/Kconfig"
 source "drivers/energy_model/Kconfig"
 source "drivers/video/klapse/Kconfig"
 
+source "kernel/sched/walt_ext/Kconfig"
 endmenu
