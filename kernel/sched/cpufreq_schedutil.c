@@ -54,6 +54,8 @@ struct sugov_tunables {
 	int 			current_step;
 	unsigned int		rtg_boost_freq;
 	bool			pl;
+	bool			limit_freq;
+	bool			limit_freq_userspace_ctl;	
 	unsigned int		target_load;
 };
 
@@ -194,12 +196,23 @@ static inline void do_freq_limit(struct sugov_policy *sg_policy, unsigned int *f
 {
 	if (kp_active_mode() >= 3)
 	{
-		return;
+		if(sg_policy->tunables->limit_freq && !sg_policy->tunables->limit_freq_userspace_ctl)
+			sg_policy->tunables->limit_freq = false;
 	}
+	else if(kp_active_mode() == 2)
+	{
+		if(!(sg_policy->tunables->limit_freq || sg_policy->tunables->limit_freq_userspace_ctl))
+				sg_policy->tunables->limit_freq = true;
+	}
+
 	else if(kp_active_mode() == 1)
 	{
 		if (*freq >  sg_policy->tunables->powersave_freq)
 			*freq = sg_policy->tunables->powersave_freq;
+		return;
+	}
+	if (!sg_policy->tunables->limit_freq )
+	{
 		return;
 	}
 	if (*freq > sg_policy->tunables->efficient_freq[sg_policy->tunables->current_step] && !sg_policy->first_hp_request_time) {
@@ -380,6 +393,8 @@ __weak unsigned long glk_cal_freq(struct cpufreq_policy *policy,
  * next_freq (as calculated above) is returned, subject to policy min/max and
  * cpufreq driver limitations.
  */
+ 
+ 
 static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 				  unsigned long util, unsigned long max, u64 time)
 {
@@ -401,8 +416,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #else
 	freq = map_util_freq(util, freq, max);
 #endif
-	if(!cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask))
-		do_freq_limit(sg_policy, &freq, time);
+	do_freq_limit(sg_policy, &freq, time);
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
@@ -761,6 +775,10 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	unsigned int next_f;
 	bool busy;
 
+
+
+	
+	
 	if (!sg_policy->tunables->pl && flags & SCHED_CPUFREQ_PL)
 		return;
 
@@ -1269,6 +1287,43 @@ static ssize_t pl_store(struct gov_attr_set *attr_set, const char *buf,
 	return count;
 }
 
+static ssize_t limit_freq_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->limit_freq);
+}
+
+static ssize_t limit_freq_store(struct gov_attr_set *attr_set, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtobool(buf, &tunables->limit_freq))
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t limit_freq_userspace_ctl_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->limit_freq_userspace_ctl);
+}
+
+static ssize_t limit_freq_userspace_ctl_store(struct gov_attr_set *attr_set, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtobool(buf, &tunables->limit_freq_userspace_ctl))
+		return -EINVAL;
+
+	return count;
+}
+
+
 static ssize_t efficient_freq_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1370,6 +1425,8 @@ static struct governor_attr powersave_freq = __ATTR_RW(powersave_freq);
 static struct governor_attr pl = __ATTR_RW(pl);
 static struct governor_attr efficient_freq = __ATTR_RW(efficient_freq);
 static struct governor_attr up_delay = __ATTR_RW(up_delay);
+static struct governor_attr limit_freq = __ATTR_RW(limit_freq);
+static struct governor_attr limit_freq_userspace_ctl = __ATTR_RW(limit_freq_userspace_ctl);
 static struct governor_attr target_load = __ATTR_RW(target_load);
 static struct attribute *sugov_attributes[] = {
 	&up_rate_limit_us.attr,
@@ -1382,6 +1439,8 @@ static struct attribute *sugov_attributes[] = {
 	&pl.attr,
 	&efficient_freq.attr,
 	&up_delay.attr,
+	&limit_freq.attr,
+	&limit_freq_userspace_ctl.attr,
 	NULL
 };
 
@@ -1511,6 +1570,9 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->up_delay = tunables->up_delay;
 	cached->nefficient_freq = tunables->nefficient_freq;
 	cached->nup_delay = tunables->nup_delay;
+	cached->limit_freq = tunables->limit_freq;
+	cached->limit_freq_userspace_ctl = tunables->limit_freq_userspace_ctl;
+	
 }
 
 static void sugov_clear_global_tunables(void)
@@ -1539,6 +1601,8 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->up_delay = cached->up_delay;
 	tunables->nefficient_freq = cached->nefficient_freq;
 	tunables->nup_delay = cached->nup_delay;
+	tunables->limit_freq = cached->limit_freq;
+	tunables->limit_freq_userspace_ctl = cached->limit_freq_userspace_ctl;
 }
 
 static int sugov_init(struct cpufreq_policy *policy)
@@ -1598,6 +1662,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->hispeed_freq = default_hispeed_freq_lp;
 		tunables->up_delay = default_up_delay_lp;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_lp);
+		tunables->limit_freq = false;
+		tunables->limit_freq_userspace_ctl = true;
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
 		tunables->up_rate_limit_us = 1000;
 		tunables->down_rate_limit_us = 2000;
@@ -1610,6 +1676,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->hispeed_freq = default_hispeed_freq_hp;
 		tunables->up_delay = default_up_delay_hp;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_hp);
+		tunables->limit_freq = true;
+		tunables->limit_freq_userspace_ctl = false;
 	} else {
 		tunables->up_rate_limit_us = 16000;
 		tunables->down_rate_limit_us = 4000;
@@ -1622,6 +1690,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->hispeed_freq = default_hispeed_freq_pr;
 		tunables->up_delay = default_up_delay_pr;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_pr);
+		tunables->limit_freq = true;
+		tunables->limit_freq_userspace_ctl = false;
 	}
 
 	switch (policy->cpu) {
