@@ -64,6 +64,8 @@
 #include <linux/cgroup.h>
 #include <linux/wait.h>
 #include <linux/binfmts.h>
+#include <misc/lyb_taskmmu.h>
+#include <linux/kprofiles.h>
 
 DEFINE_STATIC_KEY_FALSE(cpusets_pre_enable_key);
 DEFINE_STATIC_KEY_FALSE(cpusets_enabled_key);
@@ -2285,7 +2287,7 @@ static void cpuset_fork(struct task_struct *task)
 		return;
 
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
-	if (current->pkg.migt.flag & MINOR_TASK)
+	if (current->pkg.migt.flag & MINOR_TASK && kp_active_mode() != 3)
 		set_cpus_allowed_ptr(task, &current->pkg.migt.cpus_allowed);
 	else
 #endif
