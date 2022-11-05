@@ -378,30 +378,154 @@ config SCHEDUTIL_DOWN_RATE_LIMIT
 
 endif
 
-config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_LP
-	int "Default efficient frequency for the lp cluster"
-	default 1708800
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP1
+	int "Default adaptive high frequency for the lp cluster"
+	default 1612800
 	help
-	  This sets schedutil's default efficient frequency for the lp
+	  This sets schedutil's default adaptive high frequency for the lp
 	  cluster. This frequency needs to be set according to the available
 	  frequencies at cpufreq-table-0 for the little cores.
 
-config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_HP
-	int "Default efficient frequency for the hp cluster"
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP2
+	int "Default adaptive high frequency for the lp cluster"
+	default 1708800
+	help
+	  This sets schedutil's default adaptive high frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP3
+	int "Default adaptive high frequency for the lp cluster"
+	default 1804800
+	help
+	  This sets schedutil's default adaptive high frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_HP_STEP1
+	int "Default adaptive high frequency for the hp cluster"
 	default 1766400
 	help
-	  This sets schedutil's default efficient frequency for the hp
+	  This sets schedutil's default adaptive high frequency for the hp
 	  cluster. This frequency needs to be set according to the available
 	  frequencies at cpufreq-table-4 for the big cores.
 
-config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR
-	int "Default efficient frequency for the pr cluster"
-	default 2073600
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_HP_STEP2
+	int "Default adaptive high frequency for the hp cluster"
+	default 1862400
 	help
-	  This sets schedutil's default efficient frequency for the pr
+	  This sets schedutil's default adaptive high frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_HP_STEP3
+	int "Default adaptive high frequency for the hp cluster"
+	default 2054400
+	help
+	  This sets schedutil's default adaptive high frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_PR_STEP1
+	int "Default adaptive high frequency for the pr cluster"
+	default 1478400
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
 	  cluster. This frequency needs to be set according to the available
 	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_PR_STEP2
+	int "Default adaptive high frequency for the pr cluster"
+	default 1747200
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_PR_STEP3
+	int "Default adaptive high frequency for the pr cluster"
+	default 2073600
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
 
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_LP_STEP1
+	int "Default adaptive low frequency for the lp cluster"
+	default 1420800
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_LP_STEP2
+	int "Default adaptive low frequency for the lp cluster"
+	default 1171200
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_LP_STEP3
+	int "Default adaptive low frequency for the lp cluster"
+	default 691200
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_HP_STEP1
+	int "Default adaptive low frequency for the hp cluster"
+	default 1478400
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_HP_STEP2
+	int "Default adaptive low frequency for the hp cluster"
+	default 1171200
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_HP_STEP3
+	int "Default adaptive low frequency for the hp cluster"
+	default 825600
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP1
+	int "Default adaptive low frequency for the pr cluster"
+	default 1305600
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP2
+	int "Default adaptive low frequency for the pr cluster"
+	default 1190400
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP3
+	int "Default adaptive low frequency for the pr cluster"
+	default 844800
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
 
 config SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_LP
 	int "Default highspeed frequency for the lp cluster"
@@ -448,7 +572,7 @@ config DEFAULT_POWERSAVE_FREQ_PR
 	This sets schedutil's default powersave frequency for the pr
 	cluster. This frequency is set to be the max frequency when kp_active_mode = 1.
 
-config SCHEDUTIL_DEFAULT_UP_DELAY_LP
+config SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP1
 	int "Default multiplicand of the up delay for the lp cluster"
 	default 3
 	help
@@ -456,21 +580,148 @@ config SCHEDUTIL_DEFAULT_UP_DELAY_LP
 	  the default value acts as a multiplicand which is to be multiplied
 	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
 
-config SCHEDUTIL_DEFAULT_UP_DELAY_HP
+config SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP2
+	int "Default multiplicand of the up delay for the lp cluster"
+	default 15
+	help
+	  This sets schedutil's default up delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP3
+	int "Default multiplicand of the up delay for the lp cluster"
+	default 30
+	help
+	  This sets schedutil's default up delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+	  
+config SCHEDUTIL_DEFAULT_UP_DELAY_HP_STEP1
 	int "Default multiplicand of the up delay for the hp cluster"
-	default 3
+	default 100
 	help
 	  This sets schedutil's default up delay for the hp cluster where
 	  the default value acts as a multiplicand which is to be multiplied
 	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
 
-config SCHEDUTIL_DEFAULT_UP_DELAY_PR
+config SCHEDUTIL_DEFAULT_UP_DELAY_HP_STEP2
+	int "Default multiplicand of the up delay for the hp cluster"
+	default 200
+	help
+	  This sets schedutil's default up delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_UP_DELAY_HP_STEP3
+	int "Default multiplicand of the up delay for the hp cluster"
+	default 300
+	help
+	  This sets schedutil's default up delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_UP_DELAY_PR_STEP1
 	int "Default multiplicand of the up delay for the pr cluster"
-	default 3
+	default 200
 	help
 	  This sets schedutil's default up delay for the pr cluster where
 	  the default value acts as a multiplicand which is to be multiplied
 	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_UP_DELAY_PR_STEP2
+	int "Default multiplicand of the up delay for the pr cluster"
+	default 200
+	help
+	  This sets schedutil's default up delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_UP_DELAY_PR_STEP3
+	int "Default multiplicand of the up delay for the pr cluster"
+	default 500
+	help
+	  This sets schedutil's default up delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	
+
+
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_LP_STEP1
+	int "Default multiplicand of the down delay for the lp cluster"
+	default 20
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_LP_STEP2
+	int "Default multiplicand of the down delay for the lp cluster"
+	default 50
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_LP_STEP3
+	int "Default multiplicand of the down delay for the lp cluster"
+	default 50
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_HP_STEP1
+	int "Default multiplicand of the down delay for the hp cluster"
+	default 50
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_HP_STEP2
+	int "Default multiplicand of the down delay for the hp cluster"
+	default 20
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_HP_STEP3
+	int "Default multiplicand of the down delay for the hp cluster"
+	default 10
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP1
+	int "Default multiplicand of the down delay for the pr cluster"
+	default 50
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP2
+	int "Default multiplicand of the down delay for the pr cluster"
+	default 20
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP3
+	int "Default multiplicand of the down delay for the pr cluster"
+	default 10
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).  
+
+
 
 config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_HP_WITH_PID_SHRINK
 	int "Default efficient frequency for the hp cluster"
