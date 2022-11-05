@@ -84,6 +84,10 @@ TRACE_EVENT(walt_sched_compute_energy,
 		__entry->cluster_first_cpu2, __entry->s2, __entry->m2, __entry->c2)
 );
 
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(walt_sched_compute_energy);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_uclamp_eff_get);
+
 #endif /* _TRACE_WALT_H */
 
 #undef TRACE_INCLUDE_PATH
@@ -91,3 +95,4 @@ TRACE_EVENT(walt_sched_compute_energy,
 #define TRACE_INCLUDE_FILE trace
 
 #include <trace/define_trace.h>
+

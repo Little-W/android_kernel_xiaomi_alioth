@@ -10,6 +10,7 @@
 #include <linux/binfmts.h>
 #include <linux/sched/idle.h>
 
+
 /*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */
@@ -31,6 +32,7 @@ TRACE_EVENT(sched_kthread_stop,
 
 	TP_printk("comm=%s pid=%d", __entry->comm, __entry->pid)
 );
+
 
 TRACE_EVENT(sched_setaffinity,
 

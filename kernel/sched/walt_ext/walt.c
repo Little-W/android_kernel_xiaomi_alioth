@@ -3,12 +3,14 @@
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
+
 #include <linux/kmemleak.h>
 #include "include/walt_extend.h"
-
+#include <misc/lyb_taskmmu.h>
 #define CREATE_TRACE_POINTS
 #include "include/trace/hooks/sched.h"
 
+extern inline struct task_group *css_tg(struct cgroup_subsys_state *css);
 static void init_cpu_array(void)
 {
 	int i;
@@ -96,6 +98,29 @@ static void find_cache_siblings(void)
 	}
 }
 
+static void walt_update_tg_pointer(struct cgroup_subsys_state *css)
+{
+	if (!strcmp(css->cgroup->kn->name, "top-app"))
+		walt_init_topapp_tg(css_tg(css));
+	else if (!strcmp(css->cgroup->kn->name, "foreground"))
+	{
+	
+		if(!lyb_sultan_pid)
+			walt_init_foreground_tg(css_tg(css));
+		else  walt_init_tg(css_tg(css));
+	}
+	else if (!strcmp(css->cgroup->kn->name, "system-background"))
+		{
+			if(lyb_sultan_pid)
+				walt_init_topapp_tg(css_tg(css));
+			else
+				walt_init_tg(css_tg(css));
+		}
+	else
+		walt_init_tg(css_tg(css));
+}
+
+
 static void walt_update_cluster_topology(void)
 {
 	init_cpu_array();
@@ -107,11 +132,49 @@ static void walt_update_cluster_topology(void)
 
 bool walt_disabled;
 
+
+
+void android_rvh_cpu_cgroup_online(void *unused, struct cgroup_subsys_state *css)
+{
+	if (unlikely(walt_disabled))
+		return;
+
+	walt_update_tg_pointer(css);
+}
+
+
+
+void android_rvh_cpu_cgroup_attach(void *unused,struct cgroup_taskset *tset)
+{
+	struct task_struct *task;
+	struct cgroup_subsys_state *css;
+	bool colocate;
+	struct task_group *tg;
+	struct walt_task_group *wtg;
+
+	cgroup_taskset_first(tset, &css);
+	
+	tg = css_tg(css);
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	colocate = wtg->colocate;
+
+	cgroup_taskset_for_each(task, css, tset)
+		sync_cgroup_colocation(task, colocate);
+}
+
+static void register_walt_hooks(void)
+{
+       register_trace_android_rvh_cpu_cgroup_online(android_rvh_cpu_cgroup_online, NULL);
+	register_trace_android_rvh_cpu_cgroup_attach(android_rvh_cpu_cgroup_attach, NULL);
+}
+
 static void walt_init(struct work_struct *work)
 {
 	struct ctl_table_header *hdr;
 
 	walt_cfs_init();
+	walt_rt_init();
+	register_walt_hooks();
 	hdr = register_sysctl_table(walt_base_table);
 	kmemleak_not_leak(hdr);
 
@@ -119,6 +182,10 @@ static void walt_init(struct work_struct *work)
 
 	walt_disabled = false;
 }
+
+
+
+
 
 static DECLARE_WORK(walt_init_work, walt_init);
 

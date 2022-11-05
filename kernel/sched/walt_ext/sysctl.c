@@ -9,6 +9,8 @@
 unsigned int sysctl_sched_suppress_region2;
 unsigned int sysctl_sched_asymcap_boost;
 unsigned int sysctl_walt_ext_disable = 0; //disable by default
+unsigned int sysctl_sched_min_task_util_for_uclamp = 51;
+
 
 static struct ctl_table walt_table[] = {
 	{

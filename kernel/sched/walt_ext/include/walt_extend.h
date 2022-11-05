@@ -2,11 +2,15 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  */
+#ifndef _WALT_EXT_H
+#define _WALT_EXT_H
 
 #include "sched_ext.h"
 
 extern __read_mostly unsigned int walt_scale_demand_divisor;
 #define walt_scale_demand(d) ((d)/walt_scale_demand_divisor)
+
+
 
 /*Sysctl related interface*/
 extern unsigned int sysctl_walt_ext_disable;
@@ -17,7 +21,7 @@ extern int walt_init_stop_handler(struct ctl_table *table, int write,
 				       loff_t *ppos);
 
 extern void walt_cfs_init(void);
-
+extern void walt_rt_init(void);
 extern bool walt_disabled;
 
 extern void create_util_to_cost(void);
@@ -53,3 +57,7 @@ static inline bool walt_get_rtg_status(struct task_struct *p)
 	return ret;
 }
 
+
+
+
+#endif

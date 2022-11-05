@@ -693,8 +693,8 @@ int walt_find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	int delta = 0;
 	int placement_boost = task_boost_policy(p);
 	int task_boost = per_task_boost(p);
-	int boost = schedtune_task_boost(p);
-	int boosted = (schedtune_task_boost(p) > 0) || (task_boost > 0);
+	int boost = uclamp_boosted(p);
+	int boosted = (uclamp_boosted(p) > 0) || (task_boost > 0);
 	int start_cpu, order_index, end_index;
 	int first_cpu;
 	bool energy_eval_needed = true;

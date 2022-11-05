@@ -67,6 +67,8 @@
 #include <linux/task_work.h>
 #include <linux/tsacct_kern.h>
 
+#include <linux/android_vendor.h>
+
 #include <asm/tlb.h>
 
 #ifdef CONFIG_PARAVIRT
@@ -174,6 +176,8 @@ extern int num_sched_clusters;
 extern unsigned int super_big_cpu;
 extern cpumask_t asym_cap_sibling_cpus;
 #endif /* CONFIG_SCHED_WALT */
+
+extern unsigned int sysctl_sched_min_task_util_for_uclamp;
 
 /* task_struct::on_rq states: */
 #define TASK_ON_RQ_QUEUED	1
@@ -452,22 +456,47 @@ struct cfs_bandwidth {
 #endif
 };
 
-/* Task group related information */
-struct task_group {
-	bool sched_boost_no_override;
+#define MAX_NUM_BOOST_TYPE (RESTRAINED_BOOST+1)
+#define NO_BOOST 0
+#define FULL_THROTTLE_BOOST 1
+#define CONSERVATIVE_BOOST 2
+#define RESTRAINED_BOOST 3
+#define FULL_THROTTLE_BOOST_DISABLE -1
+#define CONSERVATIVE_BOOST_DISABLE -2
+#define RESTRAINED_BOOST_DISABLE -3
+
+
+struct walt_task_group {
 	/*
 	 * Controls whether a cgroup is eligible for sched boost or not. This
 	 * can temporariliy be disabled by the kernel based on the no_override
 	 * flag above.
 	 */
-	bool sched_boost_enabled;
+	bool sched_boost_no_override;
 	/*
 	 * Controls whether tasks of this cgroup should be colocated with each
 	 * other and tasks of other cgroups that have the same flag turned on.
 	 */
 	bool colocate;
+	/*
+	 * array indicating whether this task group participates in the
+	 * particular boost type
+	 */
+	bool sched_boost_enable[MAX_NUM_BOOST_TYPE];
+	/*
+	 * Controls whether tasks of this cgroup should be colocated with each
+	 * other and tasks of other cgroups that have the same flag turned on.
+	 */
 	/* Controls whether further updates are allowed to the colocate flag */
 	bool colocate_update_disabled;
+		/*
+	 * Controls whether tasks of this cgroup should be colocated with each
+	 * other and tasks of other cgroups that have the same flag turned on.
+	 */
+};
+
+/* Task group related information */
+struct task_group {
 
 	struct cgroup_subsys_state css;
 
@@ -519,8 +548,14 @@ struct task_group {
 	unsigned int		latency_sensitive;
 	/* Boosted flag for a task group */
 	unsigned int 		boosted;
+	
+	ANDROID_VENDOR_DATA_ARRAY(1, 4);
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -2801,7 +2836,8 @@ static inline bool uclamp_boosted(struct task_struct *p)
 	return schedtune_task_boost(p) > 0;
 #endif
 #ifdef CONFIG_UCLAMP_TASK
-	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
+	return ((uclamp_eff_value(p, UCLAMP_MIN) > 0) &&
+			(task_util(p) > sysctl_sched_min_task_util_for_uclamp));
 #endif
 	struct cgroup_subsys_state *css = task_css(p, cpuset_cgrp_id);
 	struct task_group *tg;
@@ -3170,8 +3206,8 @@ static inline bool schedtune_task_colocated(struct task_struct *p)
 	return false;
 }
 
-void update_cgroup_boost_settings(void);
-void restore_cgroup_boost_settings(void);
+
+
 #endif
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP
@@ -3180,6 +3216,11 @@ static inline bool task_sched_boost(struct task_struct *p)
 	struct cgroup_subsys_state *css;
 	struct task_group *tg;
 	bool sched_boost_enabled;
+	struct walt_task_group *wtg;
+
+	/* optimization for FT boost, skip looking at tg */
+	if (sched_boost_type == FULL_THROTTLE_BOOST)
+		return true;
 
 	rcu_read_lock();
 	css = task_css(p, cpu_cgrp_id);
@@ -3188,11 +3229,13 @@ static inline bool task_sched_boost(struct task_struct *p)
 		return false;
 	}
 	tg = container_of(css, struct task_group, css);
-	sched_boost_enabled = tg->sched_boost_enabled;
+	wtg = (struct walt_task_group *) tg->android_vendor_data1;
+	sched_boost_enabled = wtg->sched_boost_enable[sched_boost_type];
 	rcu_read_unlock();
 
 	return sched_boost_enabled;
 }
+
 
 extern int sync_cgroup_colocation(struct task_struct *p, bool insert);
 #endif
@@ -3467,9 +3510,12 @@ static inline void sched_irq_work_queue(struct irq_work *work)
 #endif
 
 #if defined(CONFIG_SCHED_WALT) && defined(CONFIG_UCLAMP_TASK_GROUP)
-extern void walt_init_sched_boost(struct task_group *tg);
+extern void walt_init_tg(struct task_group *tg);
+extern void walt_init_topapp_tg(struct task_group *tg);
+extern void walt_init_foreground_tg(struct task_group *tg);
 #else
-static inline void walt_init_sched_boost(struct task_group *tg) {}
+static inline struct task_group *css_tg(struct cgroup_subsys_state *css) { }
+static inline void walt_init_topapp_tg(struct task_group *tg) {}
 #endif
 
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO

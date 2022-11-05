@@ -13,6 +13,7 @@
 #if IS_ENABLED(CONFIG_KPERFEVENTS)
 #include <trace/events/sched.h>
 #endif
+#include "walt_ext/include/trace/hooks/sched.h"
 
 #include "walt.h"
 
@@ -1623,7 +1624,17 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
 {
 	struct task_struct *curr;
 	struct rq *rq;
+	struct rq *this_cpu_rq;
+	bool test;
+	int target_cpu = -1;
 	bool may_not_preempt;
+	bool sync = !!(flags & WF_SYNC);
+	int this_cpu;
+
+	trace_android_rvh_select_task_rq_rt(p, cpu, sd_flag,
+					flags, &target_cpu);
+	if (target_cpu >= 0)
+		return target_cpu;
 
 	/* For anything but wake ups, just return the task_cpu */
 	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK)
@@ -1633,6 +1644,8 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
 
 	rcu_read_lock();
 	curr = READ_ONCE(rq->curr); /* unlocked access */
+	this_cpu = smp_processor_id();
+	this_cpu_rq = cpu_rq(this_cpu);
 
 	/*
 	 * If the current task on @p's runqueue is a softirq task,
@@ -1674,16 +1687,25 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
 		int target = find_lowest_rq(p);
 
 		/*
+		 * Bail out if we were forcing a migration to find a better
+		 * fitting CPU but our search failed.
+		 */
+		if (!test && target != -1 && !rt_task_fits_capacity(p, target))
+			goto out_unlock;
+
+		/*
 		 * If cpu is non-preemptible, prefer remote cpu
 		 * even if it's running a higher-prio task.
-		 * Otherwise: Don't bother moving it if the
-		 * destination CPU is not running a lower priority task.
+		 * Otherwise: Don't bother moving it if the destination CPU is
+		 * not running a lower priority task.
 		 */
 		if (target != -1 &&
-		   (may_not_preempt ||
-		    p->prio < cpu_rq(target)->rt.highest_prio.curr))
+		    (may_not_preempt ||
+		     p->prio < cpu_rq(target)->rt.highest_prio.curr))
 			cpu = target;
 	}
+
+out_unlock:
 	rcu_read_unlock();
 
 out:
@@ -1720,6 +1742,8 @@ static void check_preempt_equal_prio(struct rq *rq, struct task_struct *p)
 static int balance_rt(struct rq *rq, struct task_struct *p, struct rq_flags *rf)
 {
 	if (!on_rt_rq(&p->rt) && need_pull_rt_task(rq, p)) {
+		int done = 0;
+
 		/*
 		 * This is OK, because current is on_cpu, which avoids it being
 		 * picked for load-balance and preemption/IRQs are still
@@ -1727,7 +1751,9 @@ static int balance_rt(struct rq *rq, struct task_struct *p, struct rq_flags *rf)
 		 * not yet started the picking loop.
 		 */
 		rq_unpin_lock(rq, rf);
-		pull_rt_task(rq);
+		trace_android_rvh_sched_balance_rt(rq, p, &done);
+		if (!done)
+			pull_rt_task(rq);
 		rq_repin_lock(rq, rf);
 	}
 
@@ -1880,109 +1906,6 @@ static struct task_struct *pick_highest_pushable_task(struct rq *rq, int cpu)
 
 static DEFINE_PER_CPU(cpumask_var_t, local_cpu_mask);
 
-static int rt_energy_aware_wake_cpu(struct task_struct *task)
-{
-	struct sched_domain *sd;
-	struct sched_group *sg;
-	struct cpumask *lowest_mask = this_cpu_cpumask_var_ptr(local_cpu_mask);
-	int cpu, best_cpu = -1;
-	unsigned long best_capacity = ULONG_MAX;
-	unsigned long util, best_cpu_util = ULONG_MAX;
-	unsigned long best_cpu_util_cum = ULONG_MAX;
-	unsigned long util_cum;
-	unsigned long tutil = task_util(task);
-	int best_cpu_idle_idx = INT_MAX;
-	int cpu_idle_idx = -1;
-	bool boost_on_big = rt_boost_on_big();
-
-	rcu_read_lock();
-
-	cpu = cpu_rq(smp_processor_id())->rd->min_cap_orig_cpu;
-	if (cpu < 0)
-		goto unlock;
-
-	sd = rcu_dereference(*per_cpu_ptr(&sd_asym_cpucapacity, cpu));
-	if (!sd)
-		goto unlock;
-
-retry:
-	sg = sd->groups;
-	do {
-		int fcpu = group_first_cpu(sg);
-		int capacity_orig = capacity_orig_of(fcpu);
-
-		if (boost_on_big) {
-			if (is_min_capacity_cpu(fcpu))
-				continue;
-		} else {
-			if (capacity_orig > best_capacity)
-				continue;
-		}
-
-		for_each_cpu_and(cpu, lowest_mask, sched_group_span(sg)) {
-
-			trace_sched_cpu_util(cpu);
-
-			if (cpu_isolated(cpu))
-				continue;
-
-			if (sched_cpu_high_irqload(cpu))
-				continue;
-
-			if (__cpu_overutilized(cpu, tutil))
-				continue;
-
-			util = cpu_util(cpu);
-
-			/* Find the least loaded CPU */
-			if (util > best_cpu_util)
-				continue;
-
-			/*
-			 * If the previous CPU has same load, keep it as
-			 * best_cpu.
-			 */
-			if (best_cpu_util == util && best_cpu == task_cpu(task))
-				continue;
-
-			/*
-			 * If candidate CPU is the previous CPU, select it.
-			 * Otherwise, if its load is same with best_cpu and in
-			 * a shallower C-state, select it.  If all above
-			 * conditions are same, select the least cumulative
-			 * window demand CPU.
-			 */
-			if (sysctl_sched_cstate_aware)
-				cpu_idle_idx = idle_get_state_idx(cpu_rq(cpu));
-
-			util_cum = cpu_util_cum(cpu, 0);
-			if (cpu != task_cpu(task) && best_cpu_util == util) {
-				if (best_cpu_idle_idx < cpu_idle_idx)
-					continue;
-
-				if (best_cpu_idle_idx == cpu_idle_idx &&
-						best_cpu_util_cum < util_cum)
-					continue;
-			}
-
-			best_cpu_idle_idx = cpu_idle_idx;
-			best_cpu_util_cum = util_cum;
-			best_cpu_util = util;
-			best_cpu = cpu;
-			best_capacity = capacity_orig;
-		}
-
-	} while (sg = sg->next, sg != sd->groups);
-
-	if (unlikely(boost_on_big) && best_cpu == -1) {
-		boost_on_big = false;
-		goto retry;
-	}
-
-unlock:
-	rcu_read_unlock();
-	return best_cpu;
-}
 
 static int find_lowest_rq(struct task_struct *task)
 {
@@ -1990,6 +1913,7 @@ static int find_lowest_rq(struct task_struct *task)
 	struct cpumask *lowest_mask = this_cpu_cpumask_var_ptr(local_cpu_mask);
 	int this_cpu = smp_processor_id();
 	int cpu = -1;
+	int ret;
 
 	/* Make sure the mask is initialized first */
 	if (unlikely(!lowest_mask))
@@ -1998,14 +1922,29 @@ static int find_lowest_rq(struct task_struct *task)
 	if (task->nr_cpus_allowed == 1)
 		return -1; /* No other targets possible */
 
-	if (!cpupri_find(&task_rq(task)->rd->cpupri, task, lowest_mask))
+	/*
+	 * If we're on asym system ensure we consider the different capacities
+	 * of the CPUs when searching for the lowest_mask.
+	 */
+	if (static_branch_unlikely(&sched_asym_cpucapacity)) {
+
+		ret = cpupri_find_fitness(&task_rq(task)->rd->cpupri,
+					  task, lowest_mask,
+					  rt_task_fits_capacity);
+	} else {
+
+		ret = cpupri_find(&task_rq(task)->rd->cpupri,
+				  task, lowest_mask);
+	}
+
+	trace_android_rvh_find_lowest_rq(task, lowest_mask, ret, &cpu);
+	if (cpu >= 0)
+		return cpu;
+
+	if (!ret)
 		return -1; /* No targets found */
 
-	if (static_branch_unlikely(&sched_energy_present))
-		cpu = rt_energy_aware_wake_cpu(task);
-
-	if (cpu == -1)
-		cpu = task_cpu(task);
+	cpu = task_cpu(task);
 
 	/*
 	 * At this point we have built a mask of CPUs representing the

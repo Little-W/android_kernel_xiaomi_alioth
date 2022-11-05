@@ -28,10 +28,12 @@
 #include <linux/mm_types_task.h>
 #include <linux/mm_event.h>
 #include <linux/task_io_accounting.h>
+
 #include <linux/rseq.h>
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
 #include <linux/pkg_stat.h>
 #endif
+#include <linux/android_vendor.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -1524,6 +1526,8 @@ struct task_struct {
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
 struct package_runtime_info pkg;
 #endif
+	ANDROID_VENDOR_DATA_ARRAY(1, 64);
+	ANDROID_OEM_DATA_ARRAY(1, 32);
 
 	/*
 	 * f9b0c6c556db ("futex: Add mutex around futex exit")
