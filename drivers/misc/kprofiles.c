@@ -29,16 +29,66 @@
 #define KP_BLANK_UNBLANK FB_BLANK_UNBLANK
 #endif
 
-static unsigned int kp_override_mode;
-static bool kp_override = false;
+#define target_cpu_util_freq 3985297
+#define GPU_STEP_UPPER_BOUND 9223372036854775000
 
+static unsigned int kp_override_mode;
+static bool kp_override = false,is_gpu_high_load = false;
+long gpu_load_show;
+long cpu_time_show;
+long gpu_freq_show;
+long cpu_time_up_sub_show;
+long cpu_time_down_sub_show;
+int up_delay_show;
+int last_time_up_show;
+int last_time_down_show;
+int is_cpu_high_load_show;
+int gpu_up_time_delay = 1000;
+int gpu_down_time_delay = 60;
+bool auto_sultan_pid = 1;
 
 module_param(auto_kprofiles, bool, 0664);
+module_param(auto_sultan_pid, bool, 0664);
 module_param(kp_mode, int, 0664);
+module_param(gpu_load_show, long, 0664);
+module_param(gpu_up_time_delay, int, 0664);
+module_param(gpu_down_time_delay, int, 0664);
+module_param(gpu_freq_show, long, 0664);
+module_param(is_gpu_high_load, bool, 0664);
+
 
 DEFINE_MUTEX(kplock);
 
 extern bool lyb_sultan_pid;
+extern bool lyb_sultan_pid_shrink;
+
+struct last_time_store{
+	u64 lp;
+	u64 hp;
+	u64 pr;
+};
+struct last_step_store{
+	int lp;
+	int hp;
+	int pr;
+};
+struct boost_request{
+	bool lp;
+	bool hp;
+	bool pr;
+};
+
+struct boost_request is_cpu_high_load;
+
+bool is_cpu_high_load_lp_show,is_cpu_high_load_hp_show,is_cpu_high_load_pr_show;
+int last_step_lp_show,last_step_hp_show,last_step_pr_show;
+
+module_param(is_cpu_high_load_lp_show, bool, 0664);
+module_param(is_cpu_high_load_hp_show, bool, 0664);
+module_param(is_cpu_high_load_pr_show, bool, 0664);
+module_param(last_step_lp_show, int, 0664);
+module_param(last_step_hp_show, int, 0664);
+module_param(last_step_pr_show, int, 0664);
 /*
 * This function can be used to change profile to any given mode 
 * for a specific period of time during any in-kernel event,
@@ -46,6 +96,193 @@ extern bool lyb_sultan_pid;
 *
 * usage example: kp_set_mode_rollback(3, 55)
 */
+void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , int target_down_delay ,
+				  u32 target_util_freq ,bool *boost_request)
+{
+	static struct last_time_store last_time_up_st,last_time_down_st;
+	static struct last_step_store last_step_st;
+	int *last_step;
+	u64 *last_time_up,*last_time_down;
+	bool *is_cpu_high_load_cur;
+	is_cpu_high_load_lp_show = is_cpu_high_load.lp,is_cpu_high_load_hp_show = is_cpu_high_load.hp,is_cpu_high_load_pr_show= is_cpu_high_load.pr;
+	last_step_lp_show = last_step_st.lp;
+	last_step_hp_show = last_step_st.hp;
+	last_step_pr_show = last_step_st.pr;
+	if (cpumask_test_cpu(cpu, cpu_lp_mask))
+	{
+		last_time_up = &last_time_up_st.lp;
+		last_time_down = &last_time_down_st.lp;
+		is_cpu_high_load_cur = &is_cpu_high_load.lp;
+		last_step = &last_step_st.lp;
+	}
+	else if (cpumask_test_cpu(cpu, cpu_perf_mask))
+	{
+		last_time_up = &last_time_up_st.hp;
+		last_time_down = &last_time_down_st.hp;
+		is_cpu_high_load_cur = &is_cpu_high_load.hp;
+		last_step = &last_step_st.hp;
+	}
+	else if (cpumask_test_cpu(cpu, cpu_prime_mask))
+	{
+		last_time_up = &last_time_up_st.pr;
+		last_time_down = &last_time_down_st.pr;
+		is_cpu_high_load_cur = &is_cpu_high_load.pr;
+		last_step = &last_step_st.pr;
+	}
+	
+	if(target_up_delay > 0 && target_down_delay > 0 )
+	{
+		cpu_time_show = time;	
+		if(!(*last_time_up))
+		{
+			if(*freq>=target_util_freq)
+			{
+				*last_time_up = time;
+				*last_time_down = 0;
+			}
+		}
+		if(!(*last_time_down))
+		{
+			if(*freq < target_util_freq)
+			{
+				*last_time_up = 0;
+				*last_time_down = time;
+			}
+		}
+		if(*last_time_up)
+		{	
+			last_time_up_show = *last_time_up;
+			cpu_time_up_sub_show = (time - *last_time_up)/NSEC_PER_MSEC;
+			if(time - *last_time_up > 10 * NSEC_PER_MSEC)
+			{ 
+				(*last_step)++;
+				*last_time_up = 0;
+				*last_time_down = 0;
+			}
+		}
+		if(*last_time_down)
+		{	
+			last_time_down_show=*last_time_down;
+			cpu_time_down_sub_show = (time - *last_time_down)/NSEC_PER_MSEC;
+			if(time - *last_time_down > 5 * NSEC_PER_MSEC)
+			{
+				if(*is_cpu_high_load_cur && *last_step > 0)	
+					*last_step = 0;
+				(*last_step)--;
+				*last_time_down = 0;
+				*last_time_up = 0;
+			}
+		}
+		if(*last_step > target_up_delay)
+		{
+			*boost_request = true;
+			*is_cpu_high_load_cur = true;
+			*last_step = 0;
+		}
+		else 	if(*last_step < -target_down_delay)
+		{
+			*boost_request = false;
+			*is_cpu_high_load_cur = false;
+			*last_step = 0;
+		}
+	}
+}
+void get_gpu_load(unsigned long *freq,unsigned long *freq_table ,u8 freq_table_max )
+{
+	if(auto_sultan_pid)
+	{
+	gpu_freq_show = *freq;
+	static s64 high_load_step = 0;
+	static is_high_load_for_long = 0;
+	gpu_load_show = high_load_step;
+	if(*freq >= freq_table[1] )
+	{
+		if(!is_gpu_high_load && high_load_step < 0)
+		{
+			if(is_high_load_for_long)
+				high_load_step = gpu_up_time_delay - 50;
+			else high_load_step = 0;
+			
+		}
+		high_load_step++;
+	}
+	else if(*freq >= freq_table[4] )
+	{
+		if(!is_gpu_high_load && high_load_step < 0)
+		{
+			if(is_high_load_for_long)
+				high_load_step = gpu_up_time_delay - 100;
+			else high_load_step = 0;
+			
+		}
+		high_load_step++;
+	}
+	else if(*freq == freq_table[freq_table_max] )
+	{	
+		if(is_gpu_high_load && high_load_step > 0)
+			high_load_step = -gpu_down_time_delay + 20;
+		high_load_step-=3;
+	}
+	else if(freq_table_max - 1 > 4 && *freq == freq_table[freq_table_max - 1] )
+	{
+		if(is_gpu_high_load && high_load_step > 0)
+			high_load_step = - gpu_down_time_delay / 2;
+		high_load_step-=2;
+	}	
+	else if(freq_table_max - 2 > 4 && *freq == freq_table[freq_table_max - 2] )
+	{
+		if(is_gpu_high_load && high_load_step > 0)
+			high_load_step = 0;
+		high_load_step--;
+	}	
+	else
+	{
+		high_load_step++;
+	}
+	if(high_load_step > gpu_up_time_delay)	
+	{	
+		is_gpu_high_load=true;
+	}
+	else if(high_load_step < -gpu_down_time_delay)
+	{
+		is_gpu_high_load = false;
+		//high_load_step = 0;
+	}
+	if(high_load_step > 15*gpu_up_time_delay)
+		is_high_load_for_long = true;
+	else if(high_load_step < -6000)
+		is_high_load_for_long = false;
+	if(high_load_step > GPU_STEP_UPPER_BOUND )
+		high_load_step = GPU_STEP_UPPER_BOUND;
+	else if(high_load_step < -GPU_STEP_UPPER_BOUND)   
+		high_load_step = -GPU_STEP_UPPER_BOUND;
+	}	
+}
+static bool adaptive_boost(void)
+{
+	bool boost;
+	if(is_cpu_high_load.hp || is_cpu_high_load.pr )
+	{
+		if(is_cpu_high_load.hp && is_cpu_high_load.pr )
+			boost=true;
+	}
+	else
+	{
+		boost=false;
+	}
+	if(is_gpu_high_load)
+	{
+		lyb_sultan_pid=true;
+		lyb_sultan_pid_shrink=true;
+	}
+	else
+	{
+		lyb_sultan_pid=false;
+		lyb_sultan_pid_shrink=false;
+	}
+	return boost;
+
+}
 void kp_set_mode_rollback(unsigned int level, unsigned int duration_ms)
 {
 #ifdef CONFIG_AUTO_KPROFILES
@@ -107,9 +344,17 @@ int kp_active_mode(void)
 {
 #ifdef CONFIG_AUTO_KPROFILES
 	if (!screen_on && auto_kprofiles)
+	{
+		if(lyb_sultan_pid)
+		{
+			lyb_sultan_pid=false;
+			lyb_sultan_pid_shrink=false;
+		}
 		return 1;
-	if (lyb_sultan_pid && auto_kprofiles)
-		return 3;
+	}
+	if(auto_kprofiles)
+		if (adaptive_boost() || lyb_sultan_pid) 
+			return 3;
 #endif
 
 	if (kp_override)

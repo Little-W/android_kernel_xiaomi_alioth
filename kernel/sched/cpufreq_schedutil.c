@@ -73,8 +73,14 @@ struct sugov_tunables {
 	u64 			*down_delay;
 	int 			ndown_delay;
 	int 			current_step_up;
+	u64 			last_time_up;
+	u64 			last_time_down;
+	bool  			boost_request;	
 	int 			current_step_down;
 	unsigned int		rtg_boost_freq;
+	int    			boost_target_up_delay;
+	int    			boost_target_down_delay;
+	u32  			boost_target_util_freq;
 	bool			pl;
 	bool			do_limit_up_freq;
 	bool			do_limit_down_freq;
@@ -85,6 +91,7 @@ struct sugov_tunables {
 	unsigned int		target_load_thresh;
 	unsigned int		target_load_shift;
 };
+
 
 struct sugov_policy {
 	struct cpufreq_policy	*policy;
@@ -242,8 +249,10 @@ static inline void do_freq_limit(struct sugov_policy *sg_policy, unsigned int *f
 	}
 	else 
 	{
-		if(!(sg_policy->tunables->do_limit_up_freq || sg_policy->tunables->limit_freq_userspace_ctl))
+		if(!(sg_policy->tunables->do_limit_up_freq || sg_policy->tunables->limit_freq_userspace_ctl || sg_policy->tunables->boost_request))
 				sg_policy->tunables->do_limit_up_freq = true;
+		else if(sg_policy->tunables->boost_request && !sg_policy->tunables->limit_freq_userspace_ctl && sg_policy->tunables->do_limit_up_freq)
+				sg_policy->tunables->do_limit_up_freq = false;
 		if(!(!sg_policy->tunables->do_limit_down_freq || sg_policy->tunables->limit_freq_userspace_ctl))
 				sg_policy->tunables->do_limit_down_freq = false;
 	}
@@ -474,9 +483,8 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
     unsigned int freq = walt_map_util_freq(util, sg_policy, max, sg_cpu->cpu);
 
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
-	if (kp_active_mode() != 3)
+	if(!lyb_sultan_pid)
 	{
-
 		unsigned int pkg_freq;
 		pkg_freq = glk_cal_freq(policy, util, max);
 		if (!pkg_freq)
@@ -498,7 +506,11 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	freq = map_util_freq(util, freq, max);
 	
 #endif /* CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
-
+	get_cpu_load( &freq, sg_policy->policy->cpu,time,
+						sg_policy->tunables->boost_target_up_delay,
+						sg_policy->tunables->boost_target_down_delay,
+						sg_policy->tunables->boost_target_util_freq,
+						&sg_policy->tunables->boost_request );
 	do_freq_limit(sg_policy, &freq, time);
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
@@ -1453,6 +1465,58 @@ static ssize_t up_delay_show(struct gov_attr_set *attr_set, char *buf)
 
 	return ret;
 }
+static ssize_t boost_target_up_delay_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", tunables->boost_target_up_delay);
+}
+static ssize_t boost_target_up_delay_store(struct gov_attr_set *attr_set,
+				  const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtouint(buf, 10, &tunables->boost_target_up_delay))
+		return -EINVAL;
+	
+	tunables->boost_target_up_delay = min(10000, tunables->boost_target_up_delay);
+
+	return count;
+}
+static ssize_t boost_target_down_delay_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", tunables->boost_target_down_delay);
+}
+static ssize_t boost_target_down_delay_store(struct gov_attr_set *attr_set,
+				  const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtouint(buf, 10, &tunables->boost_target_down_delay))
+		return -EINVAL;
+	
+	tunables->boost_target_down_delay = min(10000, tunables->boost_target_down_delay);
+
+	return count;
+}
+
+static ssize_t boost_target_util_freq_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", tunables->boost_target_util_freq);
+}
+static ssize_t boost_target_util_freq_store(struct gov_attr_set *attr_set,
+				  const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtouint(buf, 10, &tunables->boost_target_util_freq))
+		return -EINVAL;
+	
+	tunables->boost_target_util_freq = min(7000000U, tunables->boost_target_util_freq);
+
+	return count;
+}
 
 static ssize_t down_delay_show(struct gov_attr_set *attr_set, char *buf)
 {
@@ -1467,6 +1531,7 @@ static ssize_t down_delay_show(struct gov_attr_set *attr_set, char *buf)
 
 	return ret;
 }
+
 
 static ssize_t adaptive_high_freq_store(struct gov_attr_set *attr_set,
 					const char *buf, size_t count)
@@ -1621,9 +1686,12 @@ static struct governor_attr down_delay = __ATTR_RW(down_delay);
 static struct governor_attr do_limit_up_freq = __ATTR_RW(do_limit_up_freq);
 static struct governor_attr do_limit_down_freq = __ATTR_RW(do_limit_down_freq);
 static struct governor_attr limit_freq_userspace_ctl = __ATTR_RW(limit_freq_userspace_ctl);
+static struct governor_attr boost_target_up_delay = __ATTR_RW(boost_target_up_delay);
+static struct governor_attr boost_target_down_delay = __ATTR_RW(boost_target_down_delay);
+static struct governor_attr boost_target_util_freq = __ATTR_RW(boost_target_util_freq);
+
 #ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
 static struct governor_attr target_load = __ATTR_RW(target_load);
-
 #endif /* CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
 SUGOV_ATTR_RW(target_load_thresh);
 SUGOV_ATTR_RW(target_load_shift);
@@ -1647,6 +1715,9 @@ static struct attribute *sugov_attributes[] = {
 	&do_limit_up_freq.attr,
 	&do_limit_down_freq.attr,
 	&limit_freq_userspace_ctl.attr,
+	&boost_target_up_delay.attr,
+	&boost_target_down_delay.attr,
+	&boost_target_util_freq.attr,
 	NULL
 };
 
@@ -1785,6 +1856,9 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->do_limit_up_freq = tunables->do_limit_up_freq;
 	cached->do_limit_down_freq = tunables->do_limit_down_freq;
 	cached->limit_freq_userspace_ctl = tunables->limit_freq_userspace_ctl;
+	cached->boost_target_up_delay = tunables->boost_target_up_delay;
+	cached->boost_target_down_delay = tunables->boost_target_down_delay;
+	cached->boost_target_util_freq = tunables->boost_target_util_freq;
 	
 
 }
@@ -1824,6 +1898,9 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->do_limit_up_freq = cached->do_limit_up_freq;
 	tunables->do_limit_down_freq = cached->do_limit_down_freq;
 	tunables->limit_freq_userspace_ctl = cached->limit_freq_userspace_ctl;
+	tunables->boost_target_up_delay = cached->boost_target_up_delay;
+	tunables->boost_target_down_delay = cached->boost_target_down_delay;
+	tunables->boost_target_util_freq = cached->boost_target_util_freq;
 	
 
 }
@@ -1876,7 +1953,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 
 	tunables->target_load_thresh = DEFAULT_TARGET_LOAD_THRESH;
 	tunables->target_load_shift = DEFAULT_TARGET_LOAD_SHIFT;
-	
+	tunables->last_time_up=0;
+	tunables->last_time_down=0;
+	tunables->boost_request=0;
 	if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask)) {
 		tunables->up_rate_limit_us = 1000;
 		tunables->down_rate_limit_us = 1000;
@@ -1896,6 +1975,10 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->do_limit_up_freq = true;
 		tunables->do_limit_down_freq = false;
 		tunables->limit_freq_userspace_ctl = false;
+		tunables->boost_target_up_delay = 0;
+		tunables->boost_target_down_delay = 0;
+		tunables->boost_target_util_freq = 3000000;
+		
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
 			tunables->up_rate_limit_us = 1000;
 			tunables->down_rate_limit_us = 2000;
@@ -1917,6 +2000,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 			tunables->do_limit_up_freq = true;
 			tunables->do_limit_down_freq = false;
 			tunables->limit_freq_userspace_ctl = false;
+			tunables->boost_target_up_delay = 15;
+			tunables->boost_target_down_delay = 3;
+			tunables->boost_target_util_freq = 3000000;
 	} else {
 		    tunables->up_rate_limit_us = 16000;
     		tunables->down_rate_limit_us = 4000;
@@ -1936,6 +2022,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 			tunables->do_limit_up_freq = true;
 			tunables->do_limit_down_freq = false;
 			tunables->limit_freq_userspace_ctl = false;
+			tunables->boost_target_up_delay = 10;
+			tunables->boost_target_down_delay = 3;
+			tunables->boost_target_util_freq = 2200000;
 
 	}
 

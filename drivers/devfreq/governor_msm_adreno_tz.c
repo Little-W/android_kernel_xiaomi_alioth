@@ -18,6 +18,7 @@
 #include <soc/qcom/qtee_shmbridge.h>
 #include <linux/of_platform.h>
 #include "governor.h"
+#include <linux/kprofiles.h>
 
 static DEFINE_SPINLOCK(tz_lock);
 static DEFINE_SPINLOCK(sample_lock);
@@ -440,6 +441,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	}
 
 	*freq = devfreq->profile->freq_table[level];
+	get_gpu_load(freq,devfreq->profile->freq_table,devfreq->profile->max_state - 1 );
 	return 0;
 }
 
