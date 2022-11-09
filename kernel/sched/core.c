@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include <linux/scs.h>
 #include <linux/kprofiles.h>
+#include <misc/lyb_taskmmu.h>
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
 
@@ -1900,7 +1901,7 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
 	
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
-	if(kp_active_mode() != 3)
+	if(!lyb_sultan_pid)
 	{
 		p->pkg.migt.flag &= ~MINOR_TASK;
 		cpumask_copy(&p->pkg.migt.cpus_allowed, new_mask);
@@ -2516,7 +2517,7 @@ int select_task_rq(struct task_struct *p, int cpu, int sd_flags, int wake_flags,
 {
 	bool allow_isolated = (p->flags & PF_KTHREAD);
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
-	if(kp_active_mode() != 3)
+	if(!lyb_sultan_pid)
 	{
 		bool minor_wtask = minor_window_task(p);
 		cpumask_t minor_window_cpumask;
@@ -6071,7 +6072,7 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 		goto out_free_new_mask;
 
 #ifdef CONFIG_PACKAGE_RUNTIME_INFO
-	if (minor_window_task(p) && kp_active_mode() != 3) {
+	if (minor_window_task(p) && !lyb_sultan_pid) {
 		retval = -EPERM;
 		cpuset_cpus_allowed(p, cpus_allowed);
 		cpumask_and(new_mask, in_mask, cpus_allowed);
