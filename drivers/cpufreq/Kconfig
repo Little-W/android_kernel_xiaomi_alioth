@@ -525,6 +525,82 @@ config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP3
 	  frequencies at cpufreq-table-7 for the prime cores.
 	  
 
+
+
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_LP_STEP1
+	int "Default adaptive low frequency for the lp cluster when sultan's pid shrink in enabled"
+	default 1420800
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_LP_STEP2
+	int "Default adaptive low frequency for the lp cluster when sultan's pid shrink in enabled"
+	default 1171200
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_LP_STEP3
+	int "Default adaptive low frequency for the lp cluster when sultan's pid shrink in enabled"
+	default 691200
+	help
+	  This sets schedutil's default adaptive low frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_HP_STEP1
+	int "Default adaptive low frequency for the hp cluster when sultan's pid shrink in enabled"
+	default 2419200
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_HP_STEP2
+	int "Default adaptive low frequency for the hp cluster when sultan's pid shrink in enabled"
+	default 2246400
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_HP_STEP3
+	int "Default adaptive low frequency for the hp cluster when sultan's pid shrink in enabled"
+	default 1766400
+	help
+	  This sets schedutil's default adaptive low frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_PR_STEP1
+	int "Default adaptive low frequency for the pr cluster when sultan's pid shrink in enabled"
+	default 3187200
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_PR_STEP2
+	int "Default adaptive low frequency for the pr cluster when sultan's pid shrink in enabled"
+	default 2841600
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_GAME_PR_STEP3
+	int "Default adaptive low frequency for the pr cluster when sultan's pid shrink in enabled"
+	default 2457600
+	help
+	  This sets schedutil's default adaptive low frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
 config SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_LP
 	int "Default highspeed frequency for the lp cluster"
 	default 1171200
@@ -626,6 +702,81 @@ config SCHEDUTIL_DEFAULT_UP_DELAY_PR_STEP3
 
 
 
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_LP_STEP1
+	int "Default multiplicand of the down delay for the lp cluster when sultan's pid shrink in enabled"
+	default 20
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_LP_STEP2
+	int "Default multiplicand of the down delay for the lp cluster when sultan's pid shrink in enabled"
+	default 50
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_LP_STEP3
+	int "Default multiplicand of the down delay for the lp cluster when sultan's pid shrink in enabled"
+	default 50
+	help
+	  This sets schedutil's default down delay for the lp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_HP_STEP1
+	int "Default multiplicand of the down delay for the hp cluster when sultan's pid shrink in enabled"
+	default 300
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_HP_STEP2
+	int "Default multiplicand of the down delay for the hp cluster when sultan's pid shrink in enabled"
+	default 300
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_HP_STEP3
+	int "Default multiplicand of the down delay for the hp cluster when sultan's pid shrink in enabled"
+	default 400
+	help
+	  This sets schedutil's default down delay for the hp cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_PR_STEP1
+	int "Default multiplicand of the down delay for the pr cluster when sultan's pid shrink in enabled"
+	default 200
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_PR_STEP2
+	int "Default multiplicand of the down delay for the pr cluster when sultan's pid shrink in enabled"
+	default 400
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).
+	  
+config SCHEDUTIL_DEFAULT_DOWN_DELAY_GAME_PR_STEP3
+	int "Default multiplicand of the down delay for the pr cluster when sultan's pid shrink in enabled"
+	default 500
+	help
+	  This sets schedutil's default down delay for the pr cluster where
+	  the default value acts as a multiplicand which is to be multiplied
+	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).  
+
+
+
 config SCHEDUTIL_DEFAULT_DOWN_DELAY_LP_STEP1
 	int "Default multiplicand of the down delay for the lp cluster"
 	default 20
@@ -698,8 +849,6 @@ config SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP3
 	  This sets schedutil's default down delay for the pr cluster where
 	  the default value acts as a multiplicand which is to be multiplied
 	  by the number of nanosecond in one milisecond (NSEC_PER_MSEC).  
-
-
 
 config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_HP_WITH_PID_SHRINK
 	int "Default efficient frequency for the hp cluster"
