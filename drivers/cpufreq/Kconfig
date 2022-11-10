@@ -376,6 +376,87 @@ config SCHEDUTIL_DOWN_RATE_LIMIT
 	  This sets schedutil's default frequency down rate-limit in
 	  microseconds.
 
+config OPLUS_FEATURE_SUGOV_TL
+	default n
+	bool "A power optimization feature target loads"
+
+
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_LP_STEP1
+	int "Default adaptive high frequency for the lp cluster"
+	default 1612800
+	help
+	  This sets schedutil's default adaptive high frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_LP_STEP2
+	int "Default adaptive high frequency for the lp cluster"
+	default 1708800
+	help
+	  This sets schedutil's default adaptive high frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_LP_STEP3
+	int "Default adaptive high frequency for the lp cluster"
+	default 1804800
+	help
+	  This sets schedutil's default adaptive high frequency for the lp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-0 for the little cores.
+	  
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_HP_STEP1
+	int "Default adaptive high frequency for the hp cluster"
+	default 1766400
+	help
+	  This sets schedutil's default adaptive high frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_HP_STEP2
+	int "Default adaptive high frequency for the hp cluster"
+	default 1862400
+	help
+	  This sets schedutil's default adaptive high frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_HP_STEP3
+	int "Default adaptive high frequency for the hp cluster"
+	default 2054400
+	help
+	  This sets schedutil's default adaptive high frequency for the hp
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-4 for the big cores.
+	  
+
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_PR_STEP1
+	int "Default adaptive high frequency for the pr cluster"
+	default 1747200
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_PR_STEP2
+	int "Default adaptive high frequency for the pr cluster"
+	default 1862400
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+config SCHEDUTIL_DEFAULT_TARGET_LOAD_FREQ_PR_STEP3
+	int "Default adaptive high frequency for the pr cluster"
+	default 2073600
+	help
+	  This sets schedutil's default adaptive high frequency for the pr
+	  cluster. This frequency needs to be set according to the available
+	  frequencies at cpufreq-table-7 for the prime cores.
+	  
+	  
+	  
+	  	
 config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP1
 	int "Default adaptive high frequency for the lp cluster"
 	default 1612800
