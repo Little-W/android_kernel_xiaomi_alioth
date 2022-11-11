@@ -1605,6 +1605,7 @@ skip_clk_reset:
 
 err3:
 
+
 	usb_phy_shutdown(dwc->usb2_phy);
 	usb_phy_shutdown(dwc->usb3_phy);
 	phy_exit(dwc->usb2_generic_phy);

@@ -1301,8 +1301,6 @@ void psi_trigger_destroy(struct psi_trigger *t)
 		atomic_set(&group->poll_scheduled, 0);
 	}
 	kfree(t);
-}
-
 __poll_t psi_trigger_poll(void **trigger_ptr,
 				struct file *file, poll_table *wait)
 {
@@ -1348,6 +1346,7 @@ static ssize_t psi_write(struct file *file, const char __user *user_buf,
 
 	/* Take seq->lock to protect seq->private from concurrent writes */
 	mutex_lock(&seq->lock);
+
 	/* Allow only one trigger per file descriptor */
 	if (seq->private) {
 		mutex_unlock(&seq->lock);
