@@ -46,7 +46,7 @@ int is_cpu_high_load_show;
 int gpu_up_time_delay = 1000;
 int gpu_down_time_delay = 60;
 bool auto_sultan_pid = 1;
-
+unsigned long gpu_busy_perc_show;
 module_param(auto_kprofiles, bool, 0664);
 module_param(auto_sultan_pid, bool, 0664);
 module_param(kp_mode, int, 0664);
@@ -55,7 +55,7 @@ module_param(gpu_up_time_delay, int, 0664);
 module_param(gpu_down_time_delay, int, 0664);
 module_param(gpu_freq_show, long, 0664);
 module_param(is_gpu_high_load, bool, 0664);
-
+module_param(gpu_busy_perc_show, ulong, 0664);
 
 DEFINE_MUTEX(kplock);
 
@@ -164,7 +164,7 @@ void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , 
 		{	
 			last_time_down_show=*last_time_down;
 			cpu_time_down_sub_show = (time - *last_time_down)/NSEC_PER_MSEC;
-			if(time - *last_time_down > 5 * NSEC_PER_MSEC)
+			if(time - *last_time_down > 10 * NSEC_PER_MSEC)
 			{
 				if(*is_cpu_high_load_cur && *last_step > 0)	
 					*last_step = 0;
@@ -187,58 +187,83 @@ void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , 
 		}
 	}
 }
-void get_gpu_load(unsigned long *freq,unsigned long *freq_table ,u8 freq_table_max )
+void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 {
 	if(auto_sultan_pid)
 	{
 	gpu_freq_show = *freq;
+	gpu_busy_perc_show = busy_perc;
 	static s64 high_load_step = 0;
 	static is_high_load_for_long = 0;
 	gpu_load_show = high_load_step;
-	if(*freq >= freq_table[1] )
+	
+	if(*freq >= 600000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
 	{
-		if(!is_gpu_high_load && high_load_step < 0)
+		if(!is_gpu_high_load)
 		{
-			if(is_high_load_for_long)
+			if(is_high_load_for_long && high_load_step < gpu_up_time_delay - 50)
 				high_load_step = gpu_up_time_delay - 50;
-			else high_load_step = 0;
+			else if(high_load_step < 0)
+				high_load_step = 0;
 			
 		}
 		high_load_step++;
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp + is_cpu_high_load.pr))
+			high_load_step+=5;
+		if(busy_perc > 90 - 5*(is_cpu_high_load.hp + is_cpu_high_load.pr))
+			high_load_step+=20;	
 	}
-	else if(*freq >= freq_table[4] )
+	else if(*freq >= 500000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
 	{
-		if(!is_gpu_high_load && high_load_step < 0)
+		if(!is_gpu_high_load)
 		{
-			if(is_high_load_for_long)
+			if(is_high_load_for_long && high_load_step < gpu_up_time_delay - 100)
 				high_load_step = gpu_up_time_delay - 100;
-			else high_load_step = 0;
+			else if(high_load_step < 0)
+				high_load_step = 0;
 			
 		}
-		high_load_step++;
+		  high_load_step++;
+		if(busy_perc > 70 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=3;
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=5;
+		if(busy_perc > 90 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=10;	
+		if(busy_perc > 95 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=100;	
 	}
-	else if(*freq == freq_table[freq_table_max] )
+	else if(*freq > 400000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
+	{
+		high_load_step++;
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=5;
+		if(busy_perc > 90 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+			high_load_step+=10;	
+	}
+	else if(*freq <= 400000000  && busy_perc < 40)
 	{	
 		if(is_gpu_high_load && high_load_step > 0)
 			high_load_step = -gpu_down_time_delay + 20;
-		high_load_step-=3;
-	}
-	else if(freq_table_max - 1 > 4 && *freq == freq_table[freq_table_max - 1] )
-	{
-		if(is_gpu_high_load && high_load_step > 0)
-			high_load_step = - gpu_down_time_delay / 2;
 		high_load_step-=2;
-	}	
-	else if(freq_table_max - 2 > 4 && *freq == freq_table[freq_table_max - 2] )
+		if(busy_perc < 10)
+			high_load_step-=500;
+	}
+	else if(*freq < 400000000 && busy_perc < 40)
 	{
 		if(is_gpu_high_load && high_load_step > 0)
 			high_load_step = 0;
 		high_load_step--;
+		if(busy_perc < 25)
+			high_load_step-=10;
+		if(busy_perc < 15)
+			high_load_step-=100;
 	}	
 	else
 	{
-		high_load_step++;
+		high_load_step--;
 	}
+
 	if(high_load_step > gpu_up_time_delay)	
 	{	
 		is_gpu_high_load=true;
@@ -248,9 +273,9 @@ void get_gpu_load(unsigned long *freq,unsigned long *freq_table ,u8 freq_table_m
 		is_gpu_high_load = false;
 		//high_load_step = 0;
 	}
-	if(high_load_step > 15*gpu_up_time_delay)
+	if(high_load_step > 4000)
 		is_high_load_for_long = true;
-	else if(high_load_step < -6000)
+	else if(high_load_step < -5000)
 		is_high_load_for_long = false;
 	if(high_load_step > GPU_STEP_UPPER_BOUND )
 		high_load_step = GPU_STEP_UPPER_BOUND;

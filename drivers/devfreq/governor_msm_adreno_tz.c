@@ -84,6 +84,7 @@ u64 suspend_time_ms(void)
 	return time_diff;
 }
 
+
 static ssize_t gpu_load_show(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
@@ -102,7 +103,7 @@ static ssize_t gpu_load_show(struct device *dev,
 	acc_total = 0;
 	acc_relative_busy = 0;
 	spin_unlock(&sample_lock);
-	return snprintf(buf, PAGE_SIZE, "%lu\n", sysfs_busy_perc);
+	return snprintf(buf, PAGE_SIZE, "%lu\n", sysfs_busy_perc);;
 }
 
 /*
@@ -439,9 +440,21 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		level = max(level, 0);
 		level = min_t(int, level, devfreq->profile->max_state - 1);
 	}
-
+	if(kp_active_mode() != 3)
+	{
+		while(devfreq->profile->freq_table[level] >= 600000000)
+		{
+			level++;
+			if(level == devfreq->profile->max_state - 1)
+				break;
+		}
+	}
+	unsigned long gpu_load;
+	gpu_load = (acc_relative_busy * 100) / acc_total;
+	acc_relative_busy = 0;
+	acc_total = 0;
 	*freq = devfreq->profile->freq_table[level];
-	get_gpu_load(freq,devfreq->profile->freq_table,devfreq->profile->max_state - 1 );
+	get_gpu_load(freq,gpu_load);
 	return 0;
 }
 

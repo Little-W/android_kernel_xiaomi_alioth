@@ -35,7 +35,7 @@ static inline int kp_active_mode(void)
 static bool screen_on = true;
 void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , int target_down_delay ,
 				  u32 target_util_freq ,bool *boost_request);
-void get_gpu_load(unsigned long *freq,unsigned long *freq_table , u8 freq_table_max);
+void get_gpu_load(unsigned long *freq, unsigned long  busy_perc);
 #endif
 
 #endif /* _KPROFILES_H_ */ 
