@@ -1301,6 +1301,7 @@ void psi_trigger_destroy(struct psi_trigger *t)
 		atomic_set(&group->poll_scheduled, 0);
 	}
 	kfree(t);
+}
 __poll_t psi_trigger_poll(void **trigger_ptr,
 				struct file *file, poll_table *wait)
 {
