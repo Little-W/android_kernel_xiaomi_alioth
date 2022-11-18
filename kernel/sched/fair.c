@@ -26,6 +26,7 @@
 #include "walt_ext/include/trace/hooks/sched_ext.h"
 
 #include "walt.h"
+#include <linux/kprofiles.h>
 
 #ifdef CONFIG_SMP
 #endif /* CONFIG_SMP */
@@ -64,6 +65,7 @@ walt_dec_cfs_rq_stats(struct cfs_rq *cfs_rq, struct task_struct *p) {}
 #if IS_ENABLED(CONFIG_MIHW)
 unsigned int super_big_cpu = 7;
 #endif
+unsigned int hp_cpu_1 = 4;
 
 #if IS_ENABLED(CONFIG_KPERFEVENTS)
 #include <linux/kperfevents.h>
@@ -8011,7 +8013,11 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		goto done;
 #endif
 
-
+	if(!cpumask_test_cpu(7, &p->cpus_allowed) && kp_active_mode()==4)
+	{
+		p->cpus_allowed = *cpu_lp_mask;
+	}
+	
 #if IS_ENABLED(CONFIG_MIHW)
 	if (sched_boost_top_app() && is_top_app(p) && cpu_online(super_big_cpu) &&
 		!cpu_isolated(super_big_cpu) && cpumask_test_cpu(super_big_cpu, &p->cpus_allowed)) {
