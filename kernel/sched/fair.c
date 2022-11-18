@@ -26,6 +26,7 @@
 #include "walt_ext/include/trace/hooks/sched.h"
 
 #include "walt.h"
+#include <misc/lyb_taskmmu.h>
 
 #ifdef CONFIG_SMP
 #endif /* CONFIG_SMP */
@@ -64,6 +65,7 @@ walt_dec_cfs_rq_stats(struct cfs_rq *cfs_rq, struct task_struct *p) {}
 #if IS_ENABLED(CONFIG_MIHW)
 unsigned int super_big_cpu = 7;
 #endif
+unsigned int hp_cpu_1 = 4;
 
 #if IS_ENABLED(CONFIG_KPERFEVENTS)
 #include <linux/kperfevents.h>
@@ -7930,9 +7932,35 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		goto done;
 #endif
 
+	
+	if(!cpumask_test_cpu(super_big_cpu, &p->cpus_allowed) )
+	{
+		if(cpumask_test_cpu(hp_cpu_1, &p->cpus_allowed) && lyb_sultan_pid)
+			p->cpus_allowed = *cpu_lp_mask;
+		if(!(boosted || is_sf_binder_task(p) ) )
+		{
+			if (cpu_rq(prev_cpu)->nr_running > 32) {
+				int i;
+				unsigned int best_nr = UINT_MAX;
+	
+				for_each_cpu(i, cpu_lp_mask) {
+					if (!cpumask_test_cpu(i, &p->cpus_allowed))
+						continue;
+					if (cpu_rq(i)->nr_running < best_nr) {
+						best_nr = cpu_rq(i)->nr_running;
+						best_energy_cpu = i;
+					}
+				}
+			}
+		}
+		
+		goto done;
+	}
+	
+	
 
 #if IS_ENABLED(CONFIG_MIHW)
-	if (sched_boost_top_app() && is_top_app(p) && cpu_online(super_big_cpu) &&
+	if (sched_boost_top_app() && is_sf_binder_task(p) && cpu_online(super_big_cpu) &&
 		!cpu_isolated(super_big_cpu) && cpumask_test_cpu(super_big_cpu, &p->cpus_allowed)) {
 		best_energy_cpu = super_big_cpu;
 		fbt_env.fastpath = SCHED_BIG_TOP;
@@ -9137,7 +9165,7 @@ redo:
 #if IS_ENABLED(CONFIG_MIHW)
 		if (sched_boost_top_app()
 				&& super_big_cpu == env->src_cpu
-				&& is_top_app(p))
+				&& is_sf_binder_task(p))
 			goto next;
 #endif
 
