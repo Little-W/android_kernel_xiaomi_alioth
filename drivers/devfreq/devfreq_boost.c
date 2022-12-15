@@ -164,7 +164,7 @@ static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 		df->min_freq = df->profile->freq_table[0];
 		df->max_boost = false;
 		if(SCREEN_OFF)
-			df->max_freq = df->profile->freq_table[3];
+			df->max_freq = df->profile->freq_table[5];
 	} else {
 		if(kp_active_mode()==0 || kp_active_mode()==2)
 		{

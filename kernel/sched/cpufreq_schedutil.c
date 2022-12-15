@@ -691,11 +691,6 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	trace_sugov_next_freq_tl(policy->cpu, util, max, op_freq, prev_laf, prev_freq);
 #endif	
 
-	get_cpu_load( &freq, sg_policy->policy->cpu,time,
-						sg_policy->tunables->boost_target_up_delay,
-						sg_policy->tunables->boost_target_down_delay,
-						sg_policy->tunables->boost_target_util_freq,
-						&sg_policy->tunables->boost_request );
 	
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 
@@ -705,9 +700,13 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	sg_policy->need_freq_update = false;
 	sg_policy->prev_cached_raw_freq = sg_policy->cached_raw_freq;
 	sg_policy->cached_raw_freq = freq;
-	freq =  cpufreq_driver_resolve_freq(policy, freq);
 	do_freq_limit(sg_policy, &freq, time);
-	
+	freq =  cpufreq_driver_resolve_freq(policy, freq);
+	get_cpu_load( &freq, sg_policy->policy->cpu,time,
+						sg_policy->tunables->boost_target_up_delay,
+						sg_policy->tunables->boost_target_down_delay,
+						sg_policy->tunables->boost_target_util_freq,
+						&sg_policy->tunables->boost_request );
 	return freq;
 }
 
@@ -2253,9 +2252,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 			tunables->do_limit_up_freq = true;
 			tunables->do_limit_down_freq = false;
 			tunables->limit_freq_userspace_ctl = false;
-			tunables->boost_target_up_delay = 400;
-			tunables->boost_target_down_delay = 400;
-			tunables->boost_target_util_freq = 3400000;
+			tunables->boost_target_up_delay = 600;
+			tunables->boost_target_down_delay = 30;
+			tunables->boost_target_util_freq = 2246400;
 	} else {
 		    tunables->up_rate_limit_us = 16000;
     		tunables->down_rate_limit_us = 2000;
@@ -2279,9 +2278,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 			tunables->do_limit_up_freq = true;
 			tunables->do_limit_down_freq = false;
 			tunables->limit_freq_userspace_ctl = false;
-			tunables->boost_target_up_delay = 300;
-			tunables->boost_target_down_delay = 300;
-			tunables->boost_target_util_freq = 3200000;
+			tunables->boost_target_up_delay = 500;
+			tunables->boost_target_down_delay = 20;
+			tunables->boost_target_util_freq = 2457600;
 
 	}
 

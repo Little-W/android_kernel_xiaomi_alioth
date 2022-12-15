@@ -30,8 +30,7 @@
 #endif
 
 #define target_cpu_util_freq 3985297
-#define GPU_STEP_UPPER_BOUND 9223372036854775000
-
+const s16 STEP_UPPER_BOUND=30000;
 static unsigned int kp_override_mode;
 static bool kp_override = false,is_gpu_high_load = false;
 long gpu_load_show;
@@ -44,7 +43,7 @@ int last_time_up_show;
 int last_time_down_show;
 int is_cpu_high_load_show;
 int gpu_up_time_delay = 1000;
-int gpu_down_time_delay = 60;
+int gpu_down_time_delay = 100;
 bool auto_sultan_pid = 1;
 unsigned long gpu_busy_perc_show;
 module_param(auto_kprofiles, bool, 0664);
@@ -130,7 +129,7 @@ void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , 
 		last_step = &last_step_st.pr;
 	}
 	
-	if(target_up_delay > 0 && target_down_delay > 0 )
+	if(target_up_delay && target_down_delay)
 	{
 		cpu_time_show = time;	
 		if(!(*last_time_up))
@@ -179,7 +178,7 @@ void get_cpu_load(unsigned int *freq, int cpu ,u64 time , int target_up_delay , 
 			*is_cpu_high_load_cur = true;
 			*last_step = 0;
 		}
-		else 	if(*last_step < -target_down_delay)
+		else if(*last_step < -target_down_delay)
 		{
 			*boost_request = false;
 			*is_cpu_high_load_cur = false;
@@ -193,11 +192,11 @@ void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 	{
 	gpu_freq_show = *freq;
 	gpu_busy_perc_show = busy_perc;
-	static s64 high_load_step = 0;
-	static is_high_load_for_long = 0;
+	static s16 high_load_step = 0;
+	static bool is_high_load_for_long = 0;
 	gpu_load_show = high_load_step;
 	
-	if(*freq >= 600000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
+	if(*freq >= 600000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr + 2*is_high_load_for_long))
 	{
 		if(!is_gpu_high_load)
 		{
@@ -208,12 +207,14 @@ void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 			
 		}
 		high_load_step++;
-		if(busy_perc > 80 - 5*(is_cpu_high_load.hp + is_cpu_high_load.pr))
+		if(busy_perc > 70 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
+			high_load_step+=3;
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp + 2*is_cpu_high_load.pr))
 			high_load_step+=5;
-		if(busy_perc > 90 - 5*(is_cpu_high_load.hp + is_cpu_high_load.pr))
+		if(busy_perc > 90 - 5*(is_cpu_high_load.hp + 2*is_cpu_high_load.pr))
 			high_load_step+=20;	
 	}
-	else if(*freq >= 500000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
+	else if(*freq >= 500000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr + 2*is_high_load_for_long))
 	{
 		if(!is_gpu_high_load)
 		{
@@ -224,24 +225,24 @@ void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 			
 		}
 		  high_load_step++;
-		if(busy_perc > 70 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+		if(busy_perc > 70 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
 			high_load_step+=3;
-		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
 			high_load_step+=5;
-		if(busy_perc > 90 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+		if(busy_perc > 85 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
 			high_load_step+=10;	
-		if(busy_perc > 95 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+		if(busy_perc > 90 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
 			high_load_step+=100;	
 	}
-	else if(*freq > 400000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr + 2*is_high_load_for_long))
+	else if(*freq > 400000000 && busy_perc > 60 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr + 2*is_high_load_for_long))
 	{
 		high_load_step++;
-		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
+		if(busy_perc > 70 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
+			high_load_step+=3;
+		if(busy_perc > 80 - 5*(is_cpu_high_load.hp+2*is_cpu_high_load.pr))
 			high_load_step+=5;
-		if(busy_perc > 90 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
-			high_load_step+=10;	
 	}
-	else if(*freq <= 400000000  && busy_perc < 40)
+	else if(*freq <= 400000000  && busy_perc < 40 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
 	{	
 		if(is_gpu_high_load && high_load_step > 0)
 			high_load_step = -gpu_down_time_delay + 20;
@@ -249,7 +250,7 @@ void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 		if(busy_perc < 10)
 			high_load_step-=500;
 	}
-	else if(*freq < 400000000 && busy_perc < 40)
+	else if(*freq < 400000000 && busy_perc < 40 - 5*(is_cpu_high_load.hp+is_cpu_high_load.pr))
 	{
 		if(is_gpu_high_load && high_load_step > 0)
 			high_load_step = 0;
@@ -277,10 +278,10 @@ void get_gpu_load(unsigned long *freq, unsigned long busy_perc)
 		is_high_load_for_long = true;
 	else if(high_load_step < -5000)
 		is_high_load_for_long = false;
-	if(high_load_step > GPU_STEP_UPPER_BOUND )
-		high_load_step = GPU_STEP_UPPER_BOUND;
-	else if(high_load_step < -GPU_STEP_UPPER_BOUND)   
-		high_load_step = -GPU_STEP_UPPER_BOUND;
+	if(high_load_step > STEP_UPPER_BOUND )
+		high_load_step = STEP_UPPER_BOUND;
+	else if(high_load_step < -STEP_UPPER_BOUND)   
+		high_load_step = -STEP_UPPER_BOUND;
 	}	
 }
 static bool adaptive_boost(void)
