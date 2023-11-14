@@ -4004,8 +4004,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		hba->lrb[tag].hpb_ctx_id = MAX_HPB_CONTEXT_ID;
 send_orig_cmd:
 #endif
-	/* Vote PM QoS for the request */
-	ufshcd_vops_pm_qos_req_start(hba, cmd->request);
+
 
 	WARN_ON(hba->clk_gating.state != CLKS_ON);
 
@@ -4102,7 +4101,6 @@ out:
 		add_lrbp->cmd = NULL;
 		clear_bit_unlock(add_tag, &hba->lrb_in_use);
 		ufshcd_release_all(hba);
-		ufshcd_vops_pm_qos_req_end(hba, pre_cmd->request, true);
 		ufshcd_complete_lrbp_crypto(hba, pre_cmd, add_lrbp);
 		ufsf_hpb_end_pre_req(&hba->ufsf, pre_cmd->request);
 	}
