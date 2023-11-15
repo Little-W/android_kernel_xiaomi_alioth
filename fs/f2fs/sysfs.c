@@ -409,8 +409,6 @@ out:
 		} else {
 			sbi->gc_mode = GC_NORMAL;
 		}
-		return count;
-	}
 
 		return count;
 	}
