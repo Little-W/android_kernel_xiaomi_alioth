@@ -27,21 +27,6 @@ static DEFINE_MUTEX(f2fs_stat_mutex);
 static struct dentry *f2fs_debugfs_root;
 #endif
 
-const char *f2fs_cp_reasons[NR_CP_REASON_TYPE] = {
-	"no needed",
-	"non regular",
-	"compressed",
-	"hardlink",
-	"sb needs cp",
-	"wrong pino",
-	"no space roll forward",
-	"node needs cp",
-	"fastboot mode",
-	"log type is 2",
-	"dir needs recovery",
-	"parent dir xattr set",
-};
-
 /*
  * This function calculates BDF of every segments
  */
