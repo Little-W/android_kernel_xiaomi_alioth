@@ -12424,7 +12424,7 @@ static void task_fork_fair(struct task_struct *p)
 	/* Execute child process before parent after fork according to set kernel profile */
 	if (kp_active_mode() == 1)
 	  sysctl_sched_child_runs_first = 0;
-	else if (kp_active_mode() == 0 || kp_active_mode() == 2 || kp_active_mode() == 3)
+	else if (kp_active_mode() == 0 || kp_active_mode() == 2 || kp_active_mode() >= 3)
 	  sysctl_sched_child_runs_first = 1;
 #endif
 

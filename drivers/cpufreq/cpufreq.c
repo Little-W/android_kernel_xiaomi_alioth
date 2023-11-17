@@ -723,7 +723,7 @@ static ssize_t store_##file_name					\
 	int ret, temp;							\
 	struct cpufreq_policy new_policy;				\
 									\
-	if (kp_active_mode() == 1)					\
+	if (&policy->object == &policy->min)					\
 		return count;						\
 									\
 	memcpy(&new_policy, policy, sizeof(*policy));			\

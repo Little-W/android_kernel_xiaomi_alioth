@@ -172,7 +172,7 @@ static void devfreq_update_boosts(struct boost_dev *b, unsigned long state)
 			df->min_freq = state & BIT(INPUT_BOOST) ?
 			       	min(devfreq_boost_freq, df->max_freq) : df->profile->freq_table[0];
 		}
-		else if(kp_active_mode()==3)
+		else if(kp_active_mode()>=3)
 		{
 			df->max_freq = df->profile->freq_table[10];
 			df->min_freq = state & BIT(INPUT_BOOST) ?

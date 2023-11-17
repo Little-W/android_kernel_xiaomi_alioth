@@ -509,7 +509,7 @@ int perf_cpu_time_max_percent_handler(struct ctl_table *table, int write,
 	  sysctl_perf_cpu_time_max_percent = 2;
 	else if (kp_active_mode() == 2)
 	  sysctl_perf_cpu_time_max_percent = 5;
-	else if (kp_active_mode() == 3)
+	else if (kp_active_mode() >= 3)
 	  sysctl_perf_cpu_time_max_percent = 15;
 	else
 	  sysctl_perf_cpu_time_max_percent = DEFAULT_CPU_TIME_MAX_PERCENT;
