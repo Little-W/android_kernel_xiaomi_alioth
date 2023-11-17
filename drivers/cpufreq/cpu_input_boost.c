@@ -123,7 +123,7 @@ static struct boost_drv boost_drv_g __read_mostly = {
 static unsigned int get_input_boost_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
-	if (kp_active_mode() !=3)
+	if (kp_active_mode() < 3)
 	{
 		if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
 			freq = max(input_boost_freq_little, cpu_freq_min_little);
@@ -150,7 +150,7 @@ static unsigned int get_max_boost_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
 
-	if (kp_active_mode() !=3)
+	if (kp_active_mode() < 3)
 	{
 		if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
 			freq = max(max_boost_freq_little, cpu_freq_min_little);
@@ -179,12 +179,10 @@ static unsigned int get_min_freq(struct cpufreq_policy *policy)
 
 	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
 		freq = cpu_freq_min_little;
-	if (kp_active_mode() != 1) {
-		if (cpumask_test_cpu(policy->cpu, cpu_perf_mask))
-			freq = cpu_freq_min_big;
-		else if (cpumask_test_cpu(policy->cpu, cpu_prime_mask))
-			freq = cpu_freq_min_prime;
-	}
+	else if (cpumask_test_cpu(policy->cpu, cpu_perf_mask))
+		freq = cpu_freq_min_big;
+	else if (cpumask_test_cpu(policy->cpu, cpu_prime_mask))
+		freq = cpu_freq_min_prime;
 	
 	return max(freq, policy->cpuinfo.min_freq);
 }
@@ -227,7 +225,7 @@ static void __cpu_input_boost_kick(struct boost_drv *b)
 
 	if (!input_boost_duration)
 		return;
-	if (kp_active_mode() == 3)
+	if (kp_active_mode() >= 3)
 	{
 		multi=4;
 	}
