@@ -191,7 +191,7 @@ static inline int match_nearest_efficient_step(int freq, int maxstep, int *freq_
 
 static inline void do_freq_limit(struct sugov_policy *sg_policy, unsigned int *freq, u64 time)
 {
-	if (kp_active_mode() == 3)
+	if (kp_active_mode() >= 3)
 	{
 		return;
 	}
@@ -378,6 +378,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 				  unsigned long util, unsigned long max, u64 time)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
+	kp_get_cpu_load(sg_policy->policy->cur, util * 100 / max, sg_policy->policy->cpu, time);
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
 	unsigned int walt_freq;
 #endif
