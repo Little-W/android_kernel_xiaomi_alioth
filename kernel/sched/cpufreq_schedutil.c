@@ -20,6 +20,10 @@
 #include <misc/lyb_taskmmu.h>
 #include <linux/kprofiles.h>
 
+/* Target load. Lower values result in higher CPU speeds. */
+#define DEFAULT_TARGET_LOAD_LP 70
+#define DEFAULT_TARGET_LOAD_HP 80
+#define DEFAULT_TARGET_LOAD_PR 85
 static unsigned int default_efficient_freq_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_LP};
 static u64 default_up_delay_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_UP_DELAY_LP * NSEC_PER_MSEC};
 
@@ -49,6 +53,7 @@ struct sugov_tunables {
 	int 			current_step;
 	unsigned int		rtg_boost_freq;
 	bool			pl;
+	unsigned int		target_load;
 };
 
 struct sugov_policy {
@@ -347,7 +352,6 @@ __weak unsigned long glk_cal_freq(struct cpufreq_policy *policy,
 }
 #endif
 
-#define TARGET_LOAD 80
 /**
  * get_next_freq - Compute a new frequency for a given cpufreq policy.
  * @sg_policy: schedutil policy object to compute the new frequency for.
@@ -696,7 +700,7 @@ static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
 	unsigned long cpu_util = sg_cpu->util;
 	bool is_hiload;
 	unsigned long pl = sg_cpu->walt_load.pl;
-
+	unsigned int TARGET_LOAD = sg_policy->tunables->target_load;
 	if (use_pelt())
 		return;
 
@@ -734,6 +738,7 @@ static inline unsigned long target_util(struct sugov_policy *sg_policy,
 				  unsigned int freq)
 {
 	unsigned long util;
+	unsigned int TARGET_LOAD = sg_policy->tunables->target_load;
 
 	util = freq_to_util(sg_policy, freq);
 	util = mult_frac(util, TARGET_LOAD, 100);
@@ -1299,6 +1304,25 @@ static ssize_t up_delay_store(struct gov_attr_set *attr_set,
 
 	return count;
 }
+static ssize_t target_load_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->target_load);
+}
+
+static ssize_t target_load_store(struct gov_attr_set *attr_set,
+				  const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtouint(buf, 10, &tunables->target_load))
+		return -EINVAL;
+
+	tunables->target_load = min(100U, tunables->target_load);
+
+	return count;
+}
 
 
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
@@ -1307,12 +1331,13 @@ static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
 static struct governor_attr pl = __ATTR_RW(pl);
 static struct governor_attr efficient_freq = __ATTR_RW(efficient_freq);
 static struct governor_attr up_delay = __ATTR_RW(up_delay);
-
+static struct governor_attr target_load = __ATTR_RW(target_load);
 static struct attribute *sugov_attributes[] = {
 	&up_rate_limit_us.attr,
 	&down_rate_limit_us.attr,
 	&hispeed_load.attr,
 	&hispeed_freq.attr,
+	&target_load.attr,
 	&rtg_boost_freq.attr,
 	&pl.attr,
 	&efficient_freq.attr,
@@ -1524,6 +1549,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->down_rate_limit_us = 1000;
 		tunables->efficient_freq = default_efficient_freq_lp;
     		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_lp);
+		tunables->target_load = DEFAULT_TARGET_LOAD_LP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_LP;
 		tunables->hispeed_freq = default_hispeed_freq_lp;	
 		tunables->up_delay = default_up_delay_lp;
@@ -1533,6 +1559,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 			tunables->down_rate_limit_us = 2000;
 		tunables->efficient_freq = default_efficient_freq_hp;
     		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_hp);
+			tunables->target_load = DEFAULT_TARGET_LOAD_HP;
 			tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
 			tunables->hispeed_freq = default_hispeed_freq_hp;
 		tunables->up_delay = default_up_delay_hp;
@@ -1542,6 +1569,7 @@ static int sugov_init(struct cpufreq_policy *policy)
     		tunables->down_rate_limit_us = 4000;
 		tunables->efficient_freq = default_efficient_freq_pr;
     		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_pr);
+			tunables->target_load = DEFAULT_TARGET_LOAD_PR;
 			tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
 			tunables->hispeed_freq = default_hispeed_freq_pr;
 		tunables->up_delay = default_up_delay_pr;
