@@ -21,7 +21,7 @@
 #include <linux/kprofiles.h>
 
 /* Target load. Lower values result in higher CPU speeds. */
-#define DEFAULT_TARGET_LOAD_LP 70
+#define DEFAULT_TARGET_LOAD_LP 75
 #define DEFAULT_TARGET_LOAD_HP 80
 #define DEFAULT_TARGET_LOAD_PR 85
 static unsigned int default_efficient_freq_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_LP};
