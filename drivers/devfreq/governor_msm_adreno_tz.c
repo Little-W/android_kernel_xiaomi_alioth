@@ -490,6 +490,15 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		level = max(level, 0);
 		level = min_t(int, level, devfreq->profile->max_state - 1);
 	}
+	if(kp_active_mode() == 1)
+	{
+		while(devfreq->profile->freq_table[level] >= 400000000)
+		{
+			level++;
+			if(level == devfreq->profile->max_state - 1)
+				break;
+		}
+	}
 	u8 gpu_load;
 	gpu_load = (acc_relative_busy * 100) / acc_total;
 	*freq = devfreq->profile->freq_table[level];
