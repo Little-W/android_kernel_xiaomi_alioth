@@ -8025,6 +8025,12 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		fbt_env.fastpath = SCHED_BIG_TOP;
 		goto done;
 	}
+	else if(is_top_app(p) && cpu_online(hp_cpu_1) && 
+		!cpu_isolated(hp_cpu_1) && cpumask_test_cpu(hp_cpu_1, &p->cpus_allowed)){
+			best_energy_cpu = hp_cpu_1;
+			fbt_env.fastpath = PREV_CPU_FASTPATH;
+			goto done;
+	}
 #endif
 
 	rcu_read_lock();
