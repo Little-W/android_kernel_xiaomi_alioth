@@ -47,6 +47,7 @@ struct sugov_tunables {
 	unsigned int		hispeed_load;
 	unsigned int		hispeed_freq;
 	unsigned int 		*efficient_freq;
+	unsigned int 		powersave_freq;
 	int 			nefficient_freq;
 	u64 			*up_delay;
 	int 			nup_delay;
@@ -195,7 +196,12 @@ static inline void do_freq_limit(struct sugov_policy *sg_policy, unsigned int *f
 	{
 		return;
 	}
-	
+	else if(kp_active_mode() == 1)
+	{
+		if (*freq >  sg_policy->tunables->powersave_freq)
+			*freq = sg_policy->tunables->powersave_freq;
+		return;
+	}
 	if (*freq > sg_policy->tunables->efficient_freq[sg_policy->tunables->current_step] && !sg_policy->first_hp_request_time) {
 		/* First request */
 		*freq = sg_policy->tunables->efficient_freq[sg_policy->tunables->current_step];
@@ -1214,6 +1220,37 @@ static ssize_t rtg_boost_freq_store(struct gov_attr_set *attr_set,
 	return count;
 }
 
+static ssize_t powersave_freq_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->powersave_freq);
+}
+
+static ssize_t powersave_freq_store(struct gov_attr_set *attr_set,
+				    const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	unsigned int val;
+	struct sugov_policy *sg_policy;
+	unsigned long boost_util;
+	unsigned long flags;
+
+	if (kstrtouint(buf, 10, &val))
+		return -EINVAL;
+
+	tunables->powersave_freq = val;
+	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
+		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
+		boost_util = target_util(sg_policy,
+					  sg_policy->tunables->powersave_freq);
+		sg_policy->rtg_boost_util = boost_util;
+		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
+	}
+
+	return count;
+}
+
 static ssize_t pl_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1329,6 +1366,7 @@ static ssize_t target_load_store(struct gov_attr_set *attr_set,
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
 static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
+static struct governor_attr powersave_freq = __ATTR_RW(powersave_freq);
 static struct governor_attr pl = __ATTR_RW(pl);
 static struct governor_attr efficient_freq = __ATTR_RW(efficient_freq);
 static struct governor_attr up_delay = __ATTR_RW(up_delay);
@@ -1340,6 +1378,7 @@ static struct attribute *sugov_attributes[] = {
 	&hispeed_freq.attr,
 	&target_load.attr,
 	&rtg_boost_freq.attr,
+	&powersave_freq.attr,
 	&pl.attr,
 	&efficient_freq.attr,
 	&up_delay.attr,
@@ -1464,6 +1503,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->pl = tunables->pl;
 	cached->hispeed_load = tunables->hispeed_load;
 	cached->rtg_boost_freq = tunables->rtg_boost_freq;
+	cached->powersave_freq = tunables->powersave_freq;
 	cached->hispeed_freq = tunables->hispeed_freq;
 	cached->up_rate_limit_us = tunables->up_rate_limit_us;
 	cached->down_rate_limit_us = tunables->down_rate_limit_us;
@@ -1491,6 +1531,7 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->pl = cached->pl;
 	tunables->hispeed_load = cached->hispeed_load;
 	tunables->rtg_boost_freq = cached->rtg_boost_freq;
+	tunables->powersave_freq = cached->powersave_freq;
 	tunables->hispeed_freq = cached->hispeed_freq;
 	tunables->up_rate_limit_us = cached->up_rate_limit_us;
 	tunables->down_rate_limit_us = cached->down_rate_limit_us;
@@ -1549,30 +1590,36 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->up_rate_limit_us = 1000;
 		tunables->down_rate_limit_us = 1000;
 		tunables->efficient_freq = default_efficient_freq_lp;
-    		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_lp);
+		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_LP;
+		tunables->nefficient_freq =
+			ARRAY_SIZE(default_efficient_freq_lp);
 		tunables->target_load = DEFAULT_TARGET_LOAD_LP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_LP;
-		tunables->hispeed_freq = default_hispeed_freq_lp;	
+		tunables->hispeed_freq = default_hispeed_freq_lp;
 		tunables->up_delay = default_up_delay_lp;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_lp);
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
-			tunables->up_rate_limit_us = 1000;
-			tunables->down_rate_limit_us = 2000;
+		tunables->up_rate_limit_us = 1000;
+		tunables->down_rate_limit_us = 2000;
 		tunables->efficient_freq = default_efficient_freq_hp;
-    		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_hp);
-			tunables->target_load = DEFAULT_TARGET_LOAD_HP;
-			tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
-			tunables->hispeed_freq = default_hispeed_freq_hp;
+		tunables->nefficient_freq =
+			ARRAY_SIZE(default_efficient_freq_hp);
+		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_HP;
+		tunables->target_load = DEFAULT_TARGET_LOAD_HP;
+		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
+		tunables->hispeed_freq = default_hispeed_freq_hp;
 		tunables->up_delay = default_up_delay_hp;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_hp);
 	} else {
-		    tunables->up_rate_limit_us = 16000;
-    		tunables->down_rate_limit_us = 4000;
+		tunables->up_rate_limit_us = 16000;
+		tunables->down_rate_limit_us = 4000;
 		tunables->efficient_freq = default_efficient_freq_pr;
-    		tunables->nefficient_freq = ARRAY_SIZE(default_efficient_freq_pr);
-			tunables->target_load = DEFAULT_TARGET_LOAD_PR;
-			tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
-			tunables->hispeed_freq = default_hispeed_freq_pr;
+		tunables->nefficient_freq =
+			ARRAY_SIZE(default_efficient_freq_pr);
+		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_PR;
+		tunables->target_load = DEFAULT_TARGET_LOAD_PR;
+		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
+		tunables->hispeed_freq = default_hispeed_freq_pr;
 		tunables->up_delay = default_up_delay_pr;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_pr);
 	}
