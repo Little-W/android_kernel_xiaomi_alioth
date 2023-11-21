@@ -23,12 +23,12 @@
 #include "sched.h"
 
 #include <trace/events/sched.h>
-#include "walt_ext/include/trace/hooks/sched_ext.h"
 
 #include "walt.h"
 #include <linux/kprofiles.h>
 
 #ifdef CONFIG_SMP
+static inline bool task_fits_max(struct task_struct *p, int cpu);
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SCHED_WALT
@@ -3269,7 +3269,7 @@ static inline void cfs_rq_util_change(struct cfs_rq *cfs_rq, int flags)
 	}
 }
 
-inline int per_task_boost(struct task_struct *p)
+static inline int per_task_boost(struct task_struct *p)
 {
 	if (p->boost_period) {
 		if (sched_clock() > p->boost_expires) {
@@ -3865,14 +3865,14 @@ unsigned long task_util_est(struct task_struct *p)
 }
 
 #ifdef CONFIG_UCLAMP_TASK
-inline unsigned long uclamp_task_util(struct task_struct *p)
+static inline unsigned long uclamp_task_util(struct task_struct *p)
 {
 	return clamp(task_util_est(p),
 		     uclamp_eff_value(p, UCLAMP_MIN),
 		     uclamp_eff_value(p, UCLAMP_MAX));
 }
 #else
-inline unsigned long uclamp_task_util(struct task_struct *p)
+static inline unsigned long uclamp_task_util(struct task_struct *p)
 {
 	return task_util_est(p);
 }
@@ -3998,7 +3998,7 @@ done:
 	trace_sched_util_est_task(p, &p->se.avg);
 }
 
-inline bool
+static inline bool
 bias_to_this_cpu(struct task_struct *p, int cpu, int start_cpu)
 {
 	bool base_test = cpumask_test_cpu(cpu, &p->cpus_allowed) &&
@@ -4027,7 +4027,7 @@ static inline bool task_fits_capacity(struct task_struct *p,
 	return capacity * 1024 > uclamp_task_util(p) * margin;
 }
 
-inline bool task_fits_max(struct task_struct *p, int cpu)
+static inline bool task_fits_max(struct task_struct *p, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long max_capacity = cpu_rq(cpu)->rd->max_cpu_capacity.val;
@@ -4050,7 +4050,7 @@ inline bool task_fits_max(struct task_struct *p, int cpu)
 	return task_fits_capacity(p, capacity, cpu);
 }
 
-inline bool task_demand_fits(struct task_struct *p, int cpu)
+static inline bool task_demand_fits(struct task_struct *p, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
 	unsigned long max_capacity = cpu_rq(cpu)->rd->max_cpu_capacity.val;
@@ -4060,6 +4060,17 @@ inline bool task_demand_fits(struct task_struct *p, int cpu)
 
 	return task_fits_capacity(p, capacity, cpu);
 }
+
+struct find_best_target_env {
+	int placement_boost;
+	int need_idle;
+	int fastpath;
+	int start_cpu;
+	int skip_cpu;
+	bool is_rtg;
+	bool boosted;
+	bool strict_max;
+};
 
 static inline void adjust_cpus_for_packing(struct task_struct *p,
 			int *target_cpu, int *best_idle_cpu,
@@ -7116,6 +7127,15 @@ static int get_start_cpu(struct task_struct *p, bool sync_boost)
 	return start_cpu;
 }
 
+enum fastpaths {
+	NONE = 0,
+	SYNC_WAKEUP,
+	PREV_CPU_FASTPATH,
+#if IS_ENABLED(CONFIG_MIHW)
+	SCHED_BIG_TOP,
+#endif
+};
+
 static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 					struct task_struct *p,
 					struct find_best_target_env *fbt_env)
@@ -7889,7 +7909,7 @@ static void select_cpu_candidates(struct sched_domain *sd, cpumask_t *cpus,
 		cpumask_set_cpu(highest_spare_cap_cpu, cpus);
 }
 
-inline int wake_to_idle(struct task_struct *p)
+static inline int wake_to_idle(struct task_struct *p)
 {
 	return (current->flags & PF_WAKE_UP_IDLE) ||
 			(p->flags & PF_WAKE_UP_IDLE);
@@ -8196,15 +8216,6 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
 	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
-	int target_cpu = -1;
-
-	if (trace_android_rvh_select_task_rq_fair_enabled() &&
-	    !(sd_flag & SD_BALANCE_FORK))
-		sync_entity_load_avg(&p->se);
-	trace_android_rvh_select_task_rq_fair(p, prev_cpu, sd_flag,
-			wake_flags, &target_cpu);
-	if (target_cpu >= 0)
-		return target_cpu;
 
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);

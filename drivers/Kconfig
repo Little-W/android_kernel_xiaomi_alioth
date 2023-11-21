@@ -241,5 +241,4 @@ source "drivers/kernelsu/Kconfig"
 
 source "drivers/video/klapse/Kconfig"
 
-source "kernel/sched/walt_ext/Kconfig"
 endmenu

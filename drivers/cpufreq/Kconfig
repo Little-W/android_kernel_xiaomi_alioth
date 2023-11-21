@@ -737,14 +737,6 @@ config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR_WITH_PID_SHRINK
 	  This sets schedutil's default efficient frequency for the pr
 	  cluster when pid shrink is enabled, usually for gaming use.
 
-config CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	bool "use function walt_map_util_freq()"
-	default n
-	depends on CPU_FREQ_GOV_SCHEDUTIL
-	help
-	  Enable backported walt features in schedutil governor.
-
-
 comment "CPU frequency scaling drivers"
 
 config CPUFREQ_DT

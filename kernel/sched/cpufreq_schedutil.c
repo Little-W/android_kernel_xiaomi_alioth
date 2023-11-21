@@ -16,7 +16,6 @@
 #include <linux/binfmts.h>
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
-#include <trace/events/sched.h>
 #include <linux/sched/sysctl.h>
 #include <misc/lyb_taskmmu.h>
 #include <linux/kprofiles.h>
@@ -75,10 +74,6 @@ struct sugov_tunables {
 	bool			do_limit_down_freq;
 	bool			limit_freq_userspace_ctl;	
 	unsigned int		target_load;
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	unsigned int		target_load_thresh;
-	unsigned int		target_load_shift;
-#endif
 };
 
 struct sugov_policy {
@@ -434,23 +429,6 @@ __weak unsigned long glk_cal_freq(struct cpufreq_policy *policy,
 }
 #endif
 
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-static inline int walt_map_util_freq(unsigned long util,
-					struct sugov_policy *sg_policy,
-					unsigned long cap, int cpu)
-{
-	unsigned long fmax = sg_policy->policy->cpuinfo.max_freq;
-	unsigned int shift = sg_policy->tunables->target_load_shift;
-
-	if (util >= sg_policy->tunables->target_load_thresh &&
-	    cpu_util_rt(cpu_rq(cpu)) < (cap >> 2))
-		return max(
-			(fmax + (fmax >> shift)) * util,
-			(fmax + (fmax >> 2)) * sg_policy->tunables->target_load_thresh
-			)/cap;
-	return (fmax + (fmax >> 2)) * util / cap;
-}
-#endif
 /**
  * get_next_freq - Compute a new frequency for a given cpufreq policy.
  * @sg_policy: schedutil policy object to compute the new frequency for.
@@ -476,37 +454,20 @@ static inline int walt_map_util_freq(unsigned long util,
  
  
 static unsigned int get_next_freq(struct sugov_policy *sg_policy,
-				  unsigned long util, unsigned long max, u64 time , struct sugov_cpu *sg_cpu)
+				  unsigned long util, unsigned long max, u64 time)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
-	unsigned int final_freq;
 	kp_get_cpu_load(sg_policy->policy->cur, util * 100 / max, sg_policy->policy->cpu, time);
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-    unsigned int freq = walt_map_util_freq(util, sg_policy, max, sg_cpu->cpu);
-
-#ifdef CONFIG_PACKAGE_RUNTIME_INFO
-
-	unsigned int pkg_freq;
-	pkg_freq = glk_cal_freq(policy, util, max);
-	if (!pkg_freq)
-		pkg_freq = glk_freq_limit(policy, &freq);
-	else
-		sg_policy->need_freq_update = true;
-	freq = min(pkg_freq,freq);
-
-
+#if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
+	unsigned int walt_freq;
 #endif
 
 
-
 	
-
-#else /* !CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
 	unsigned int freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
 
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
-	unsigned int walt_freq;
 	walt_freq = map_util_freq(util, freq, max);
 	freq = glk_cal_freq(policy, util, max);
 	if (!freq)
@@ -516,20 +477,15 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #else
 	freq = map_util_freq(util, freq, max);
 #endif
-#endif /* CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
-
 	do_freq_limit(sg_policy, &freq, time);
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
-	final_freq = cpufreq_driver_resolve_freq(policy, freq);
-
 	sg_policy->need_freq_update = false;
 	sg_policy->prev_cached_raw_freq = sg_policy->cached_raw_freq;
 	sg_policy->cached_raw_freq = freq;
-
-	return final_freq;
+	return cpufreq_driver_resolve_freq(policy, freq);
 }
 
 extern long
@@ -824,11 +780,6 @@ static inline bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu) { return false; }
 #define DEFAULT_CPU0_RTG_BOOST_FREQ 1000000
 #define DEFAULT_CPU4_RTG_BOOST_FREQ 0
 #define DEFAULT_CPU7_RTG_BOOST_FREQ 0
-
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-#define DEFAULT_TARGET_LOAD_THRESH 1024
-#define DEFAULT_TARGET_LOAD_SHIFT 4
-#endif
 static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
 			      unsigned long *max)
 {
@@ -880,14 +831,7 @@ static inline unsigned long target_util(struct sugov_policy *sg_policy,
 	unsigned int TARGET_LOAD = sg_policy->tunables->target_load;
 
 	util = freq_to_util(sg_policy, freq);
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	if (sg_policy->max == min_max_possible_capacity &&
-		util >= sg_policy->tunables->target_load_thresh)
-		util = mult_frac(util, 94, 100);
-	else
-#endif
-		util = mult_frac(util, TARGET_LOAD, 100);
-
+	util = mult_frac(util, TARGET_LOAD, 100);
 	return util;
 }
 
@@ -944,7 +888,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 				sg_cpu->walt_load.rtgb_active, flags);
 
 	sugov_walt_adjust(sg_cpu, &util, &max);
-	next_f = get_next_freq(sg_policy, util, max, time , sg_cpu);
+	next_f = get_next_freq(sg_policy, util, max, time);
 	/*
 	 * Do not reduce the frequency if the CPU has not been idle
 	 * recently, as the reduction is likely to be premature then.
@@ -1016,7 +960,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		sugov_walt_adjust(j_sg_cpu, &util, &max);
 	}
 
-	return get_next_freq(sg_policy, util, max, time , sg_cpu);
+	return get_next_freq(sg_policy, util, max, time);
 }
 
 static void
@@ -1634,37 +1578,8 @@ static ssize_t target_load_store(struct gov_attr_set *attr_set,
 
 	return count;
 }
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
 
 
-#define SUGOV_ATTR_RW(_name)						\
-static struct governor_attr _name =					\
-__ATTR(_name, 0644, show_##_name, store_##_name)			\
-
-#define show_attr(name)							\
-static ssize_t show_##name(struct gov_attr_set *attr_set, char *buf)	\
-{									\
-	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);	\
-	return scnprintf(buf, PAGE_SIZE, "%lu\n", tunables->name);	\
-}									\
-
-#define store_attr(name)						\
-static ssize_t store_##name(struct gov_attr_set *attr_set,		\
-				const char *buf, size_t count)		\
-{									\
-	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);	\
-									\
-	if (kstrtouint(buf, 10, &tunables->name))			\
-		return -EINVAL;						\
-									\
-	return count;							\
-}									\
-
-show_attr(target_load_thresh);
-store_attr(target_load_thresh);
-show_attr(target_load_shift);
-store_attr(target_load_shift);
-#endif
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
 static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
@@ -1678,19 +1593,11 @@ static struct governor_attr do_limit_up_freq = __ATTR_RW(do_limit_up_freq);
 static struct governor_attr do_limit_down_freq = __ATTR_RW(do_limit_down_freq);
 static struct governor_attr limit_freq_userspace_ctl = __ATTR_RW(limit_freq_userspace_ctl);
 static struct governor_attr target_load = __ATTR_RW(target_load);
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-SUGOV_ATTR_RW(target_load_thresh);
-SUGOV_ATTR_RW(target_load_shift);
-#endif /* CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
 static struct attribute *sugov_attributes[] = {
 	&up_rate_limit_us.attr,
 	&down_rate_limit_us.attr,
 	&hispeed_load.attr,
 	&hispeed_freq.attr,
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	&target_load_thresh.attr,
-	&target_load_shift.attr,
-#endif /* CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE */
 	&target_load.attr,
 	&rtg_boost_freq.attr,
 	&powersave_freq.attr,
@@ -1838,11 +1745,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->do_limit_up_freq = tunables->do_limit_up_freq;
 	cached->do_limit_down_freq = tunables->do_limit_down_freq;
 	cached->limit_freq_userspace_ctl = tunables->limit_freq_userspace_ctl;
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	cached->target_load_thresh = tunables->target_load_thresh;
-	cached->target_load_shift = tunables->target_load_shift;
 	
-#endif
 }
 
 static void sugov_clear_global_tunables(void)
@@ -1877,10 +1780,6 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->do_limit_up_freq = cached->do_limit_up_freq;
 	tunables->do_limit_down_freq = cached->do_limit_down_freq;
 	tunables->limit_freq_userspace_ctl = cached->limit_freq_userspace_ctl;
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	tunables->target_load_thresh = cached->target_load_thresh;
-	tunables->target_load_shift = cached->target_load_shift;
-#endif
 }
 
 static int sugov_init(struct cpufreq_policy *policy)
@@ -1927,10 +1826,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 	}
 
 
-#ifdef CONFIG_CPUFREQ_GOV_SCHEDUTIL_WALT_AWARE
-	tunables->target_load_thresh = DEFAULT_TARGET_LOAD_THRESH;
-	tunables->target_load_shift = DEFAULT_TARGET_LOAD_SHIFT;
-#endif 
 	
 	if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask)) {
 		tunables->up_rate_limit_us = 1000;

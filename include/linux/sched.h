@@ -28,7 +28,6 @@
 #include <linux/mm_types_task.h>
 #include <linux/mm_event.h>
 #include <linux/task_io_accounting.h>
-#include <linux/android_vendor.h>
 #include <linux/rseq.h>
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
 #include <linux/pkg_stat.h>
@@ -1517,8 +1516,6 @@ struct task_struct {
 
 	/* 095444fad7e3 ("futex: Replace PF_EXITPIDONE with a state") */
 	ANDROID_KABI_USE(2, unsigned int futex_state);
-	ANDROID_VENDOR_DATA_ARRAY(1, 64);
-	ANDROID_OEM_DATA_ARRAY(1, 32);
 
 	/*
 	 * f9b0c6c556db ("futex: Add mutex around futex exit")
