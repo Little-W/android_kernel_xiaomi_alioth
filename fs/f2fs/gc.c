@@ -33,7 +33,7 @@ static unsigned int count_bits(const unsigned long *addr,
 				unsigned int offset, unsigned int len);
 
 
-#define TRIGGER_RAPID_GC (!screen_on && power_supply_is_system_supplied() > 0)
+#define TRIGGER_RAPID_GC (!screen_on && power_supply_is_system_supplied())
 static bool screen_on = true;
 static LIST_HEAD(gc_sbi_list);
 static DEFINE_MUTEX(gc_wakelock_mutex);
