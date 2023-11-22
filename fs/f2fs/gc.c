@@ -174,12 +174,7 @@ do_gc:
 			if (foreground)
 				wake_up_all(&gc_th->fggc_wq);
 
-			/*
-			 * Rapid GC would have cleaned hundreds of segments
-			 * that would not be read again anytime soon.
-			 */
-			mm_drop_caches(3);
-			f2fs_info(sbi, "dropped caches");
+
 		}
 
 		trace_f2fs_background_gc(sbi->sb, wait_ms,
