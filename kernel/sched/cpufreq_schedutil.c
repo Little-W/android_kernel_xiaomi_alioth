@@ -1839,9 +1839,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->down_delay = default_down_delay_lp;
 		tunables->nup_delay = ARRAY_SIZE(default_up_delay_lp);
 		tunables->ndown_delay = ARRAY_SIZE(default_down_delay_lp);
-		tunables->do_limit_up_freq = true;
+		tunables->do_limit_up_freq = false;
 		tunables->do_limit_down_freq = false;
-		tunables->limit_freq_userspace_ctl = false;
+		tunables->limit_freq_userspace_ctl = true;
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
 		tunables->up_rate_limit_us = 1000;
 		tunables->down_rate_limit_us = 2000;
