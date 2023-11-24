@@ -1828,8 +1828,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 
 	
 	if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask)) {
-		tunables->up_rate_limit_us = 1000;
-		tunables->down_rate_limit_us = 1000;
+		tunables->up_rate_limit_us = 500;
+		tunables->down_rate_limit_us = 500;
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_LP;
 		tunables->adaptive_high_freq = default_adaptive_high_freq_lp;
     	tunables->nadaptive_high_freq = ARRAY_SIZE(default_adaptive_high_freq_lp);
@@ -1848,7 +1848,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->limit_freq_userspace_ctl = true;
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
 		tunables->up_rate_limit_us = 1000;
-		tunables->down_rate_limit_us = 2000;
+		tunables->down_rate_limit_us = 500;
 
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_HP;
 		tunables->adaptive_high_freq = default_adaptive_high_freq_hp;
@@ -1866,8 +1866,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->do_limit_down_freq = false;
 		tunables->limit_freq_userspace_ctl = false;
 	} else {
-		tunables->up_rate_limit_us = 16000;
-		tunables->down_rate_limit_us = 4000;
+		tunables->up_rate_limit_us = 10000;
+		tunables->down_rate_limit_us = 1000;
 		
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_PR;
 		tunables->adaptive_high_freq = default_adaptive_high_freq_pr;
