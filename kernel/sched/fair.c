@@ -9091,6 +9091,11 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 		return 0;
 #endif
 
+	/* Dont allow boosted tasks to be pulled to small cores */
+	if (env->flags & LBF_IGNORE_BIG_TASKS &&
+		(uclamp_boosted(p) > 0))
+		return 0;
+
 	/* Don't detach task if it is under active migration */
 	if (env->src_rq->push_task == p)
 		return 0;
