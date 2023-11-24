@@ -7084,7 +7084,7 @@ static int get_start_cpu(struct task_struct *p, bool sync_boost)
 	 * or just mid will be -1, there never be any other combinations of -1s
 	 * beyond these
 	 */
-	if ((task_skip_min || boosted) && p->prio <= DEFAULT_PRIO) {
+	if (task_skip_min || boosted) {
 		start_cpu = rd->mid_cap_orig_cpu == -1 ?
 			rd->max_cap_orig_cpu : rd->mid_cap_orig_cpu;
 	}
@@ -7570,7 +7570,7 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 		if ((prefer_idle && best_idle_cpu != -1) ||
 		    (boosted && (best_idle_cpu != -1 || target_cpu != -1 ||
 		     (fbt_env->strict_max && most_spare_cap_cpu != -1)))) {
-			if (boosted && p->prio <= DEFAULT_PRIO) {
+			if (boosted) {
 				if (!next_group_higher_cap)
 					break;
 			} else {
