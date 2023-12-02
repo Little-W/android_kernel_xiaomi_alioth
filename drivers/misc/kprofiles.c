@@ -208,15 +208,15 @@ void kp_get_gpu_load(unsigned long *freq, u8 busy_perc)
 		else
 			gpu_load_info.longtime_high_load_step += 4;
 	}
-	else if(*freq >= 500000000 && busy_perc > 70 - target_load_balance)
+	else if(*freq >= 550000000 && busy_perc > 70 - target_load_balance)
 	{
 		gpu_load_info.longtime_high_load_step += 2;
 	}
-	else if(*freq >= 450000000 && busy_perc > 70 - target_load_balance)
+	else if(*freq >= 500000000 && busy_perc > 70 - target_load_balance)
 	{
 		gpu_load_info.longtime_high_load_step += 1;
 	}
-	else if(*freq < 450000000 && busy_perc >= 40 + target_load_balance)
+	else if(*freq < 500000000 && busy_perc >= 40 + target_load_balance)
 	{
 		gpu_load_info.longtime_high_load_step -= 2;
 	}
