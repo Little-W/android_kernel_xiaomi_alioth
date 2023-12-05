@@ -1035,21 +1035,6 @@ static void sugov_work(struct kthread_work *work)
 	raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 
 	mutex_lock(&sg_policy->work_lock);
-	if (!screen_on)
-	{
-	   if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) 
-	   {
-		sg_policy->policy->max=CONFIG_CPU_FREQ_IDLE_PERF;
-		//__cpufreq_driver_target(sg_policy->policy, CONFIG_CPU_FREQ_IDLE_PERF,CPUFREQ_RELATION_L);
-
-          } 
-          else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_prime_mask)) 
-	   {
-	       sg_policy->policy->max=CONFIG_CPU_FREQ_IDLE_PRIME;
-		//__cpufreq_driver_target(sg_policy->policy, CONFIG_CPU_FREQ_IDLE_PRIME,CPUFREQ_RELATION_L);
-	   }
-	}
-	else	
 	__cpufreq_driver_target(sg_policy->policy, freq, CPUFREQ_RELATION_L);
 	mutex_unlock(&sg_policy->work_lock);
 }
