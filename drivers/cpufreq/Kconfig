@@ -362,6 +362,50 @@ endif
 
 if CPU_FREQ_GOV_SCHEDUTIL
 
+config SCHEDUTIL_FAS_TARGET_FRAME_TIME
+	int "Default target frametime for schedutil"
+	default 4000
+	help
+	  This sets schedutil's default target fas frametime, which
+	  affects the aggressiveness of the scheduling frequency selection.
+
+config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_FRAME_TIME
+	int "Default target frametime of citical tasks for schedutil"
+	default 3000
+	help
+	  This sets schedutil's default target fas frametime for citical tasks.
+	  When frequent janks are detected, this frametime will be utilized.
+
+config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS
+	int "FAS citical task boost duration for schedutil"
+	default 4000
+	help
+	  This sets schedutil's fas boost duration for citical tasks in milliseconds.
+
+config DEFAULT_CPU0_FAS_EFFICIENT_FREQ
+	int "Default fas efficient frequency for schedutil"
+	default 1804800
+	help
+	  This sets schedutil's fas efficient frequency of cpu0. 
+	  This is the minimum CPU frequency when janks are 
+	  detected and FAS boost is triggered."
+
+config DEFAULT_CPU4_FAS_EFFICIENT_FREQ
+	  int "Default fas efficient frequency for schedutil"
+	  default 1766400
+	  help
+		This sets schedutil's fas efficient frequency of cpu4. 
+		This is the minimum CPU frequency when janks are 
+		detected and FAS boost is triggered."	 
+
+config DEFAULT_CPU7_FAS_EFFICIENT_FREQ
+		int "Default fas efficient frequency for schedutil"
+		default 2073600
+		help
+		  This sets schedutil's fas efficient frequency of cpu7. 
+		  This is the minimum CPU frequency when janks are 
+		  detected and FAS boost is triggered."		
+		
 config SCHEDUTIL_UP_RATE_LIMIT
 	int "Default up rate-limit for schedutil"
 	default 0
