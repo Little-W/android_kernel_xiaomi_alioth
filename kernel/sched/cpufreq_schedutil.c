@@ -2451,11 +2451,18 @@ static void schedutil_fas_handler(
 	raw_spin_lock_irqsave(&rq->lock, flags);
 	fas_boost_ctl(sg_cpu->sg_policy,ui_frame_time,cur_time);
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
+#if IS_ENABLED(CONFIG_MIHW)	
+	if(ui_frame_time > 12000)
+	{
+		sched_set_boost_top_app(MI_BOOST);
+	}
+#endif
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 	if(ui_frame_time > sg_cpu->sg_policy->tunables->fas_boost_threshold)
 	{
 		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW,100);
 	}
+
 
 fas_handler_out:
 	put_cpu();

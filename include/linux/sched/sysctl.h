@@ -119,6 +119,7 @@ extern int sched_boost_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
 
 #if IS_ENABLED(CONFIG_MIHW)
+extern void sched_set_boost_top_app(int type);
 extern int sched_boost_top_app_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
 #endif

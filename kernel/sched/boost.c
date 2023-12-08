@@ -254,7 +254,7 @@ static void _sched_set_boost(int type)
 }
 
 #if IS_ENABLED(CONFIG_MIHW)
-static void sched_set_boost_top_app(int type)
+void sched_set_boost_top_app(int type)
 {
 	sysctl_sched_boost_top_app = type;
 }
