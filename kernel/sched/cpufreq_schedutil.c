@@ -29,6 +29,7 @@
 #define DEFAULT_TARGET_LOAD_PR 85
 
 #define FAS_JANK_THRESHOLD 30
+const u64 FAS_INSTANT_KICK_DURATION = 5 * 8333 * NSEC_PER_USEC;
 const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
 const u64 FAS_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
@@ -59,14 +60,21 @@ static unsigned int default_hispeed_freq_lp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED
 static unsigned int default_hispeed_freq_hp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_HP;
 
 static unsigned int default_hispeed_freq_pr = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_PR;
+struct fas_kthread_data
+{
+	unsigned int ui_frame_time;
+	struct rq *rq;
+};
 
 struct fas_info {
 	u8    jank_count;
 	u32   freq;
+	bool  fas_jank_boost;
 	bool  critical_task_boost;
 	u64   fas_jank_boost_end_time;
 	u64   timer_end_time;
 	u64   critical_task_boost_end_time;
+	struct fas_kthread_data kthread_data;
 };
 
 struct sugov_tunables {
@@ -1786,9 +1794,9 @@ static inline void sugov_policy_free(struct sugov_policy *sg_policy)
 	kfree(sg_policy);
 }
 
-static inline void sugov_fas_info_free(struct fas_info *fas_info)
+static inline void sugov_fas_free(struct sugov_policy *sg_policy)
 {
-	kfree(fas_info);
+	kfree(sg_policy->fas_info);
 }
 
 static int sugov_kthread_create(struct sugov_policy *sg_policy)
@@ -1860,6 +1868,7 @@ static struct fas_info *fas_info_alloc(void)
 	fas_info = kzalloc(sizeof(*fas_info), GFP_KERNEL);
 	return fas_info;
 }
+
 
 static void sugov_tunables_save(struct cpufreq_policy *policy,
 		struct sugov_tunables *tunables)
@@ -1987,8 +1996,9 @@ static int sugov_init(struct cpufreq_policy *policy)
 		ret = -ENOMEM;
 		goto stop_kthread;
 	}
+
 	fas_info = fas_info_alloc();
-	
+
 	if (!fas_info) {
 		ret = -ENOMEM;
 		goto stop_kthread;
@@ -2134,7 +2144,7 @@ static void sugov_exit(struct cpufreq_policy *policy)
 	mutex_unlock(&global_tunables_lock);
 
 	sugov_kthread_stop(sg_policy);
-	sugov_fas_info_free(sg_policy->fas_info);
+	sugov_fas_free(sg_policy);
 	sugov_policy_free(sg_policy);
 	cpufreq_disable_fast_switch(policy);
 }
@@ -2238,11 +2248,32 @@ static struct cpufreq_governor schedutil_gov = {
 	.limits			= sugov_limits,
 };
 
-static void calc_fas_boost_freq(
-        struct sugov_policy *sg_policy, unsigned int ui_frame_time, u64 cur_time)
+static struct task_struct *fas_handler_kthread;
+
+static int fas_boost_ctl_kthread_fn(void *data)
 {
+	struct sugov_policy *sg_policy;
 	u32 base_freq;
 	int freq_index;
+	unsigned long flags;
+	struct rq *rq;
+	int cpu;
+	ktime_t cur_time;
+
+	cur_time = ktime_get();
+	sg_policy = data;
+	cpu = get_cpu();
+	rq = cpu_rq(cpu);
+
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	
+	if (sg_policy->fas_info->critical_task_boost) 
+	{
+		if (sg_policy->fas_info->critical_task_boost_end_time < cur_time)
+		{
+			sg_policy->fas_info->critical_task_boost = false;
+		}
+	}
 
 	if (sg_policy->fas_info->timer_end_time >= cur_time)
 	{
@@ -2253,8 +2284,9 @@ static void calc_fas_boost_freq(
 		else 
 		{
 			sg_policy->fas_info->critical_task_boost = true;
-			sg_policy->fas_info->critical_task_boost_end_time =
-				cur_time +sg_policy->tunables->fas_critical_task_boost_duration_ms * NSEC_PER_MSEC;
+			sg_policy->fas_info->critical_task_boost_end_time = cur_time +
+				sg_policy->tunables->fas_critical_task_boost_duration_ms *
+				NSEC_PER_MSEC;
 		}
 	}
 	else
@@ -2263,62 +2295,73 @@ static void calc_fas_boost_freq(
 		sg_policy->fas_info->timer_end_time = cur_time + FAS_TIMER_INTERVAL;
 	}
 
-	if (sg_policy->fas_info->critical_task_boost) 
-	{
-		if (sg_policy->fas_info->critical_task_boost_end_time < cur_time)
-		{
-			sg_policy->fas_info->critical_task_boost = false;
-		}
-	}
-
 	base_freq = max(sg_policy->tunables->fas_efficient_freq, sg_policy->policy->cur);
 	freq_index = cpufreq_frequency_table_target(
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
 	sg_policy->fas_info->fas_jank_boost_end_time =
 		cur_time + (sg_policy->fas_info->critical_task_boost ?
-				    FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
-				    FAS_JANK_BOOST_DURATION);
+			 FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
+			 FAS_JANK_BOOST_DURATION);
 
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
-		freq_index += ui_frame_time / sg_policy->tunables->fas_target_frametime;
+		freq_index += sg_policy->fas_info->kthread_data.ui_frame_time / sg_policy->tunables->fas_target_frametime;
 	}
 	else 
 	{
-		freq_index += ui_frame_time / sg_policy->tunables->fas_critical_task_target_frametime;
+		freq_index += sg_policy->fas_info->kthread_data.ui_frame_time 
+			/ sg_policy->tunables->fas_critical_task_target_frametime;
 	}
 
 	sg_policy->fas_info->freq =
 		sg_policy->policy->freq_table[freq_index].frequency;
+
+	cpufreq_update_util(sg_policy->fas_info->kthread_data.rq, SCHED_CPUFREQ_SKIP_LIMITS);
+
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+	put_cpu();
+	do_exit(0);
+	return 0;
 }
 
 static void schedutil_fas_handler(
         unsigned int ui_frame_time, ktime_t cur_time)
 {
-	struct rq *rq;
-	unsigned long flags;
-	struct sugov_cpu *sg_cpu;
 	int cpu;
-
+	struct rq *rq;
+	struct sugov_cpu *sg_cpu;
+	unsigned long flags;
+	
 	cpu = get_cpu();
 	rq = cpu_rq(cpu);
 	sg_cpu = &per_cpu(sugov_cpu, cpu);
 	// Schedutil is not running on this cpu now.
 	if (sg_cpu->sg_policy == NULL ||
 	        !sg_cpu->sg_policy->tunables->frame_aware) {
-		goto out_put_cpu;
+		put_cpu();
+		return;
 	}
 	raw_spin_lock_irqsave(&rq->lock, flags);
-	calc_fas_boost_freq(sg_cpu->sg_policy, ui_frame_time, cur_time);
-	/*
-	 * No need to call rcu_read_lock_sched() because it
-	 * automatically get locked on disabling preemption.
-	 */
+	sg_cpu->sg_policy->fas_info->fas_jank_boost_end_time = cur_time + FAS_INSTANT_KICK_DURATION;
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
-out_put_cpu:
+
+	sg_cpu->sg_policy->fas_info->kthread_data.ui_frame_time = ui_frame_time;
+	sg_cpu->sg_policy->fas_info->kthread_data.rq = rq;
+
 	put_cpu();
+	fas_handler_kthread = kthread_create(fas_boost_ctl_kthread_fn, sg_cpu->sg_policy, "fas_boost_ctl_kthread");
+    if (IS_ERR(fas_handler_kthread)) {
+		return;
+	}
+	else
+	{
+		// Run kthread on prime core.
+		kthread_bind(fas_handler_kthread, 7);
+		wake_up_process(fas_handler_kthread);
+		return;
+	}
 }
 
 static struct hwui_mon_receiver schedutil_frametime_receiver = {
