@@ -2008,8 +2008,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 	
 	
 	if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_lp_mask)) {
-		tunables->up_rate_limit_us = 500;
-		tunables->down_rate_limit_us = 500;
+		tunables->up_rate_limit_us = CONFIG_SCHEDUTIL_UP_RATE_LIMIT_LP;
+		tunables->down_rate_limit_us = CONFIG_SCHEDUTIL_DOWN_RATE_LIMIT_LP;
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_LP;
 		tunables->adaptive_up_freq = default_adaptive_up_freq_lp;
     	tunables->nadaptive_up_freq = ARRAY_SIZE(default_adaptive_up_freq_lp);
@@ -2027,8 +2027,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->limit_down = false;
 		tunables->limit_freq_userspace_ctl = true;
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
-		tunables->up_rate_limit_us = 1000;
-		tunables->down_rate_limit_us = 500;
+		tunables->up_rate_limit_us = CONFIG_SCHEDUTIL_UP_RATE_LIMIT_PERF;
+		tunables->down_rate_limit_us = CONFIG_SCHEDUTIL_DOWN_RATE_LIMIT_PERF;
 
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_HP;
 		tunables->adaptive_up_freq = default_adaptive_up_freq_hp;
@@ -2046,8 +2046,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->limit_down = false;
 		tunables->limit_freq_userspace_ctl = false;
 	} else {
-		tunables->up_rate_limit_us = 10000;
-		tunables->down_rate_limit_us = 1000;
+		tunables->up_rate_limit_us = CONFIG_SCHEDUTIL_UP_RATE_LIMIT_PRIME;
+		tunables->down_rate_limit_us = CONFIG_SCHEDUTIL_DOWN_RATE_LIMIT_PRIME;
 		
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_PR;
 		tunables->adaptive_up_freq = default_adaptive_up_freq_pr;

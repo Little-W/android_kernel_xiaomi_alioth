@@ -405,21 +405,48 @@ config DEFAULT_CPU7_FAS_EFFICIENT_FREQ
 		  This sets schedutil's fas efficient frequency of cpu7. 
 		  This is the minimum CPU frequency when janks are 
 		  detected and FAS boost is triggered."		
-		
-config SCHEDUTIL_UP_RATE_LIMIT
+
+config SCHEDUTIL_UP_RATE_LIMIT_LP
 	int "Default up rate-limit for schedutil"
 	default 0
 	help
-	  This sets schedutil's default frequency up rate-limit in
-	  microseconds.
+	  This sets schedutil's default frequency up rate-limit of
+	  lp cluster in microseconds.
 
-config SCHEDUTIL_DOWN_RATE_LIMIT
+config SCHEDUTIL_DOWN_RATE_LIMIT_LP
 	int "Default down rate-limit for schedutil"
 	default 0
 	help
-	  This sets schedutil's default frequency down rate-limit in
-	  microseconds.
+	  This sets schedutil's default frequency down rate-limit of
+	  lp cluster in microseconds.
+	  
+config SCHEDUTIL_UP_RATE_LIMIT_PERF
+	int "Default up rate-limit for schedutil"
+	default 0
+	help
+	  This sets schedutil's default frequency up rate-limit of
+	  perf cluster in microseconds.
 
+config SCHEDUTIL_DOWN_RATE_LIMIT_PERF
+	int "Default down rate-limit for schedutil"
+	default 0
+	help
+	  This sets schedutil's default frequency down rate-limit of
+	  perf cluster in microseconds.
+		
+config SCHEDUTIL_UP_RATE_LIMIT_PRIME
+	int "Default up rate-limit for schedutil"
+	default 0
+	help
+	  This sets schedutil's default frequency up rate-limit of
+	  prime cluster in microseconds.
+
+config SCHEDUTIL_DOWN_RATE_LIMIT_PRIME
+	int "Default down rate-limit for schedutil"
+	default 0
+	help
+	  This sets schedutil's default frequency down rate-limit of
+	  prime cluster in microseconds.
 endif
 
 config SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP1
