@@ -2346,7 +2346,7 @@ static void schedutil_fas_handler(
 	sg_cpu->sg_policy->fas_info->fas_jank_boost_end_time = cur_time + FAS_INSTANT_KICK_DURATION;
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
-
+	sched_boost_top_app();
 	sg_cpu->sg_policy->fas_info->kthread_data.ui_frame_time = ui_frame_time;
 	sg_cpu->sg_policy->fas_info->kthread_data.rq = rq;
 
