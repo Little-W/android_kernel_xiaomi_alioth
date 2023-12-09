@@ -61,13 +61,6 @@ static unsigned int default_hispeed_freq_lp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED
 static unsigned int default_hispeed_freq_hp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_HP;
 
 static unsigned int default_hispeed_freq_pr = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_PR;
-struct fas_kthread_data
-{
-	unsigned int ui_frame_time;
-	struct rq *rq;
-	int current_process_id;
-};
-
 struct fas_info {
 	u8    jank_count;
 	u32   freq;
@@ -78,7 +71,6 @@ struct fas_info {
 	u64   critical_task_boost_end_time;
 	u64   pid_period_end_time;
 	int   last_process_id;
-	struct fas_kthread_data kthread_data;
 	unsigned int last_ui_frame_time;
 };
 
@@ -2264,24 +2256,12 @@ static struct cpufreq_governor schedutil_gov = {
 	.limits			= sugov_limits,
 };
 
-static struct task_struct *fas_handler_kthread;
-
-static int fas_boost_ctl_kthread_fn(void *data)
+static void fas_boost_ctl(struct sugov_policy *sg_policy,
+			  unsigned int ui_frame_time, ktime_t cur_time)
 {
-	struct sugov_policy *sg_policy;
 	u32 base_freq;
 	int freq_index;
-	unsigned long flags;
-	struct rq *rq;
-	int cpu;
-	ktime_t cur_time;
 	int delta_ui_frame_time;
-	cur_time = ktime_get();
-	sg_policy = data;
-	cpu = get_cpu();
-	rq = cpu_rq(cpu);
-
-	raw_spin_lock_irqsave(&rq->lock, flags);
 	
 	if (sg_policy->fas_info->critical_task_boost) 
 	{
@@ -2316,14 +2296,13 @@ static int fas_boost_ctl_kthread_fn(void *data)
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
 	if ((sg_policy->fas_info->pid_period_end_time < cur_time) ||
-	    (sg_policy->fas_info->kthread_data.current_process_id !=
-	     sg_policy->fas_info->last_process_id)) {
+			(current->pid != sg_policy->fas_info->last_process_id))
+	{
 		sg_policy->fas_info->last_ui_frame_time = 0;
 		sg_policy->fas_info->pid_period_end_time = cur_time + FAS_PID_TIMER_INTERVAL;
 		if(current->pid != sg_policy->fas_info->last_process_id)
 		{
-			sg_policy->fas_info->last_process_id = 
-				sg_policy->fas_info->kthread_data.current_process_id;
+		sg_policy->fas_info->last_process_id = current->pid;
 		}
 	}
 
@@ -2334,35 +2313,27 @@ static int fas_boost_ctl_kthread_fn(void *data)
 
 	delta_ui_frame_time =
 		sg_policy->fas_info->last_ui_frame_time ?
-			(sg_policy->fas_info->kthread_data.ui_frame_time -
-			 sg_policy->fas_info->last_ui_frame_time) :
-			0;
+			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time) : 0;
 
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
 		freq_index +=
-			(sg_policy->fas_info->kthread_data.ui_frame_time +
-			 delta_ui_frame_time) /
+			(ui_frame_time + delta_ui_frame_time) /
 			sg_policy->tunables->fas_target_frametime;
 	}
 	else 
 	{
 		freq_index +=
-			(sg_policy->fas_info->kthread_data.ui_frame_time +
-			 delta_ui_frame_time) /
+			(ui_frame_time + delta_ui_frame_time) /
 			sg_policy->tunables->fas_critical_task_target_frametime;
 	}
 
 	sg_policy->fas_info->freq =
 		sg_policy->policy->freq_table[freq_index].frequency;
 
-	cpufreq_update_util(sg_policy->fas_info->kthread_data.rq, SCHED_CPUFREQ_SKIP_LIMITS);
+	sg_policy->fas_info->last_ui_frame_time = ui_frame_time;
 
-	sg_policy->fas_info->last_ui_frame_time = sg_policy->fas_info->kthread_data.ui_frame_time;
-
-	raw_spin_unlock_irqrestore(&rq->lock, flags);
-	put_cpu();
-	do_exit(0);
+	return;
 }
 
 static void schedutil_fas_handler(
@@ -2379,25 +2350,17 @@ static void schedutil_fas_handler(
 	// Schedutil is not running on this cpu now.
 	if (sg_cpu->sg_policy == NULL ||
 	        !sg_cpu->sg_policy->tunables->frame_aware) {
-		put_cpu();
-		return;
+		goto fas_handler_out;
+
 	}
 	sched_boost_top_app();
-	sg_cpu->sg_policy->fas_info->kthread_data.ui_frame_time = ui_frame_time;
-	sg_cpu->sg_policy->fas_info->kthread_data.rq = rq;
-	sg_cpu->sg_policy->fas_info->kthread_data.current_process_id = current->pid;
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	fas_boost_ctl(sg_cpu->sg_policy,ui_frame_time,cur_time);
+	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+
+fas_handler_out:
 	put_cpu();
-	fas_handler_kthread = kthread_create(fas_boost_ctl_kthread_fn, sg_cpu->sg_policy, "fas_boost_ctl_kthread");
-    if (IS_ERR(fas_handler_kthread)) {
-		return;
-	}
-	else
-	{
-		// Run kthread on prime core.
-		kthread_bind(fas_handler_kthread, 7);
-		wake_up_process(fas_handler_kthread);
-		return;
-	}
 }
 
 static struct hwui_mon_receiver schedutil_frametime_receiver = {
