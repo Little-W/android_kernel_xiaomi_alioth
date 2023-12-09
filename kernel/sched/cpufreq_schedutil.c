@@ -32,7 +32,9 @@
 const u64 FAS_INSTANT_KICK_DURATION = 5 * 8333 * NSEC_PER_USEC;
 const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
-const u64 FAS_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
+const u64 FAS_CTB_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
+const u64 FAS_PID_TIMER_INTERVAL = 5000 * NSEC_PER_MSEC;
+
 
 static unsigned int default_adaptive_up_freq_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP1,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP2,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP3};
 static u64 default_up_delay_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP1 * NSEC_PER_MSEC,CONFIG_SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP2 * NSEC_PER_MSEC,CONFIG_SCHEDUTIL_DEFAULT_UP_DELAY_LP_STEP3 * NSEC_PER_MSEC};
@@ -64,6 +66,7 @@ struct fas_kthread_data
 {
 	unsigned int ui_frame_time;
 	struct rq *rq;
+	int current_process_id;
 };
 
 struct fas_info {
@@ -72,9 +75,12 @@ struct fas_info {
 	bool  fas_jank_boost;
 	bool  critical_task_boost;
 	u64   fas_jank_boost_end_time;
-	u64   timer_end_time;
+	u64   ctb_timer_end_time;
 	u64   critical_task_boost_end_time;
+	u64   pid_period_end_time;
+	int   last_process_id;
 	struct fas_kthread_data kthread_data;
+	unsigned int last_ui_frame_time;
 };
 
 struct sugov_tunables {
@@ -532,9 +538,10 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #else
 	freq = map_util_freq(util, freq, max);
 #endif
-	do_freq_limit(sg_policy, &freq, time);
 
+	do_freq_limit(sg_policy, &freq, time);
 out:
+
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
@@ -2269,7 +2276,7 @@ static int fas_boost_ctl_kthread_fn(void *data)
 	struct rq *rq;
 	int cpu;
 	ktime_t cur_time;
-
+	int delta_ui_frame_time;
 	cur_time = ktime_get();
 	sg_policy = data;
 	cpu = get_cpu();
@@ -2285,7 +2292,7 @@ static int fas_boost_ctl_kthread_fn(void *data)
 		}
 	}
 
-	if (sg_policy->fas_info->timer_end_time >= cur_time)
+	if (sg_policy->fas_info->ctb_timer_end_time >= cur_time)
 	{
 		if (sg_policy->fas_info->jank_count < FAS_JANK_THRESHOLD)
 		{
@@ -2302,26 +2309,49 @@ static int fas_boost_ctl_kthread_fn(void *data)
 	else
 	{
 		sg_policy->fas_info->jank_count = 0;
-		sg_policy->fas_info->timer_end_time = cur_time + FAS_TIMER_INTERVAL;
+		sg_policy->fas_info->ctb_timer_end_time = cur_time + FAS_CTB_TIMER_INTERVAL;
 	}
 
 	base_freq = max(sg_policy->tunables->fas_efficient_freq, sg_policy->policy->cur);
 	freq_index = cpufreq_frequency_table_target(
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
+	if ((sg_policy->fas_info->pid_period_end_time < cur_time) ||
+	    (sg_policy->fas_info->kthread_data.current_process_id !=
+	     sg_policy->fas_info->last_process_id)) {
+		sg_policy->fas_info->last_ui_frame_time = 0;
+		sg_policy->fas_info->pid_period_end_time = cur_time + FAS_PID_TIMER_INTERVAL;
+		if(current->pid != sg_policy->fas_info->last_process_id)
+		{
+			sg_policy->fas_info->last_process_id = 
+				sg_policy->fas_info->kthread_data.current_process_id;
+		}
+	}
+
 	sg_policy->fas_info->fas_jank_boost_end_time =
 		cur_time + (sg_policy->fas_info->critical_task_boost ?
 			 FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
 			 FAS_JANK_BOOST_DURATION);
 
+	delta_ui_frame_time =
+		sg_policy->fas_info->last_ui_frame_time ?
+			(sg_policy->fas_info->kthread_data.ui_frame_time -
+			 sg_policy->fas_info->last_ui_frame_time) :
+			0;
+
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
-		freq_index += sg_policy->fas_info->kthread_data.ui_frame_time / sg_policy->tunables->fas_target_frametime;
+		freq_index +=
+			(sg_policy->fas_info->kthread_data.ui_frame_time +
+			 delta_ui_frame_time) /
+			sg_policy->tunables->fas_target_frametime;
 	}
 	else 
 	{
-		freq_index += sg_policy->fas_info->kthread_data.ui_frame_time 
-			/ sg_policy->tunables->fas_critical_task_target_frametime;
+		freq_index +=
+			(sg_policy->fas_info->kthread_data.ui_frame_time +
+			 delta_ui_frame_time) /
+			sg_policy->tunables->fas_critical_task_target_frametime;
 	}
 
 	sg_policy->fas_info->freq =
@@ -2329,10 +2359,11 @@ static int fas_boost_ctl_kthread_fn(void *data)
 
 	cpufreq_update_util(sg_policy->fas_info->kthread_data.rq, SCHED_CPUFREQ_SKIP_LIMITS);
 
+	sg_policy->fas_info->last_ui_frame_time = sg_policy->fas_info->kthread_data.ui_frame_time;
+
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 	put_cpu();
 	do_exit(0);
-	return 0;
 }
 
 static void schedutil_fas_handler(
@@ -2359,7 +2390,7 @@ static void schedutil_fas_handler(
 
 	sg_cpu->sg_policy->fas_info->kthread_data.ui_frame_time = ui_frame_time;
 	sg_cpu->sg_policy->fas_info->kthread_data.rq = rq;
-
+	sg_cpu->sg_policy->fas_info->kthread_data.current_process_id = current->pid;
 	put_cpu();
 	fas_handler_kthread = kthread_create(fas_boost_ctl_kthread_fn, sg_cpu->sg_policy, "fas_boost_ctl_kthread");
     if (IS_ERR(fas_handler_kthread)) {
