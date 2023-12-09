@@ -71,6 +71,7 @@ struct fas_info {
 	u64   critical_task_boost_end_time;
 	u64   pid_period_end_time;
 	int   last_process_id;
+	int   max_freq_index;
 	unsigned int last_ui_frame_time;
 };
 
@@ -2012,6 +2013,8 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto stop_kthread;
 	}	
 	
+	fas_info->max_freq_index = cpufreq_frequency_table_target(policy, policy->max,
+						     CPUFREQ_RELATION_L);
 	sg_policy->fas_info = fas_info;
 	
 	
@@ -2328,6 +2331,11 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 			sg_policy->tunables->fas_critical_task_target_frametime;
 	}
 
+	if(freq_index > sg_policy->fas_info->max_freq_index)
+	{
+		freq_index = sg_policy->fas_info->max_freq_index;
+	}
+	
 	sg_policy->fas_info->freq =
 		sg_policy->policy->freq_table[freq_index].frequency;
 
