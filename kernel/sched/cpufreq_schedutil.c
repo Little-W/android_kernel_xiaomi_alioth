@@ -29,7 +29,6 @@
 #define DEFAULT_TARGET_LOAD_PR 85
 
 #define FAS_JANK_THRESHOLD 30
-const u64 FAS_INSTANT_KICK_DURATION = 5 * 8333 * NSEC_PER_USEC;
 const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CTB_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
@@ -2383,10 +2382,6 @@ static void schedutil_fas_handler(
 		put_cpu();
 		return;
 	}
-	raw_spin_lock_irqsave(&rq->lock, flags);
-	sg_cpu->sg_policy->fas_info->fas_jank_boost_end_time = cur_time + FAS_INSTANT_KICK_DURATION;
-	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
-	raw_spin_unlock_irqrestore(&rq->lock, flags);
 	sched_boost_top_app();
 	sg_cpu->sg_policy->fas_info->kthread_data.ui_frame_time = ui_frame_time;
 	sg_cpu->sg_policy->fas_info->kthread_data.rq = rq;
