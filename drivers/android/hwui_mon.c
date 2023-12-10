@@ -84,7 +84,7 @@ static int hwui_inject2_handler(
         struct uprobe_consumer *self, struct pt_regs *regs)
 {
 	s64 buf[UI_FRAME_INFO_SIZE];
-	unsigned int ui_frame_time;
+	int ui_frame_time;
 	struct hwui_mon_receiver *receiver;
 	ktime_t cur_time;
 	int ret;

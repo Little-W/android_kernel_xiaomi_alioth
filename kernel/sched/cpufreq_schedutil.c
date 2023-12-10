@@ -72,7 +72,7 @@ struct fas_info {
 	u64   pid_period_end_time;
 	int   last_process_id;
 	int   max_freq_index;
-	unsigned int last_ui_frame_time;
+	int last_ui_frame_time;
 };
 
 struct sugov_tunables {
@@ -2260,7 +2260,7 @@ static struct cpufreq_governor schedutil_gov = {
 };
 
 static void fas_boost_ctl(struct sugov_policy *sg_policy,
-			  unsigned int ui_frame_time, ktime_t cur_time)
+			  int ui_frame_time, ktime_t cur_time)
 {
 	u32 base_freq;
 	int freq_index;
@@ -2345,7 +2345,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 }
 
 static void schedutil_fas_handler(
-        unsigned int ui_frame_time, ktime_t cur_time)
+        int ui_frame_time, ktime_t cur_time)
 {
 	int cpu;
 	struct rq *rq;
