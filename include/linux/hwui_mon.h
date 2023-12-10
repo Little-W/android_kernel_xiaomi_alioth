@@ -8,7 +8,7 @@
 #include <linux/list.h>
 
 typedef void (*hwui_frame_handler)
-        (unsigned int ui_frame_time, ktime_t cur_time);
+        (int ui_frame_time, ktime_t cur_time);
 
 struct hwui_mon_receiver {
 	struct list_head list;
