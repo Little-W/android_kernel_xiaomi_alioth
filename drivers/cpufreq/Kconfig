@@ -382,6 +382,29 @@ config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS
 	help
 	  This sets schedutil's fas boost duration for citical tasks in milliseconds.
 
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_LP
+	int "Default fas min boost frequency for schedutil"
+	default 1420800
+	help
+		This sets schedutil's min boost frequency of lp cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered."
+
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_HP
+	int "Default fas efficient frequency for schedutil"
+	default 1574400
+	help
+		This sets schedutil's min boost frequency of hp cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered."
+
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_PR
+	int "Default fas efficient frequency for schedutil"
+	default 1747200
+	help
+		This sets schedutil's min boost frequency of prime cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered."  
 
 config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_LP
 	int "Default fas efficient frequency for schedutil"

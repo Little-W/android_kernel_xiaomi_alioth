@@ -138,6 +138,7 @@ struct sugov_tunables {
 	unsigned int		*fas_efficient_freqs;
 	unsigned int		*fas_limiter_threshold;
 	unsigned int    	*fas_efficient_freq_index;
+	unsigned int 		fas_min_boost_freq;
     struct cpufreq_policy *internal_policy;
 	int 			nfas_efficient_freqs;	
 	bool			frame_aware;
@@ -1487,6 +1488,27 @@ static ssize_t rtg_boost_freq_store(struct gov_attr_set *attr_set,
 	return count;
 }
 
+static ssize_t fas_min_boost_freq_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_min_boost_freq);
+}
+
+static ssize_t fas_min_boost_freq_store(struct gov_attr_set *attr_set,
+				    const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	unsigned int val;
+
+	if (kstrtouint(buf, 10, &val))
+		return -EINVAL;
+
+	tunables->fas_min_boost_freq = val;
+
+	return count;
+}
+
 static ssize_t fas_efficient_freqs_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1914,6 +1936,7 @@ static ssize_t target_load_store(struct gov_attr_set *attr_set,
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
 static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
+static struct governor_attr fas_min_boost_freq = __ATTR_RW(fas_min_boost_freq);
 static struct governor_attr fas_efficient_freqs = __ATTR_RW(fas_efficient_freqs);
 static struct governor_attr fas_limiter_threshold = __ATTR_RW(fas_limiter_threshold);
 static struct governor_attr frame_aware = __ATTR_RW(frame_aware);
@@ -1937,6 +1960,7 @@ static struct attribute *sugov_attributes[] = {
 	&hispeed_freq.attr,
 	&target_load.attr,
 	&rtg_boost_freq.attr,
+	&fas_min_boost_freq.attr,
 	&fas_efficient_freqs.attr,
 	&fas_limiter_threshold.attr,
 	&frame_aware.attr,
@@ -2087,6 +2111,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->pl = tunables->pl;
 	cached->hispeed_load = tunables->hispeed_load;
 	cached->rtg_boost_freq = tunables->rtg_boost_freq;
+	cached->fas_min_boost_freq = tunables->fas_min_boost_freq;
 	cached->fas_efficient_freqs = tunables->fas_efficient_freqs;
 	cached->fas_limiter_threshold = tunables->fas_limiter_threshold;
 	cached->frame_aware = tunables->frame_aware;
@@ -2129,6 +2154,7 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->pl = cached->pl;
 	tunables->hispeed_load = cached->hispeed_load;
 	tunables->rtg_boost_freq = cached->rtg_boost_freq;
+	tunables->fas_min_boost_freq = cached->fas_min_boost_freq;
 	tunables->fas_efficient_freqs = cached->fas_efficient_freqs;
 	tunables->fas_limiter_threshold = cached->fas_limiter_threshold;
 	tunables->frame_aware = cached->frame_aware;
@@ -2221,6 +2247,7 @@ static int sugov_init(struct cpufreq_policy *policy)
     	tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_lp);
 		tunables->fas_efficient_freqs = default_fas_efficient_freqs_lp;
 		tunables->fas_limiter_threshold = default_fas_limiter_threshold_lp;
+		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_LP;
     	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_lp) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_LP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_LP;
@@ -2242,6 +2269,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_hp);
 		tunables->fas_efficient_freqs = default_fas_efficient_freqs_hp;
 		tunables->fas_limiter_threshold = default_fas_limiter_threshold_hp;
+		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_HP;
     	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_hp) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_HP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
@@ -2263,6 +2291,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_pr);
 		tunables->fas_efficient_freqs = default_fas_efficient_freqs_pr;
 		tunables->fas_limiter_threshold = default_fas_limiter_threshold_pr;
+		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_PR;
     	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_pr) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_PR;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
@@ -2512,7 +2541,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 		sg_policy->fas_info->limiter_period_end_time = cur_time + FAS_LIMITER_TIMER_INTERVAL;
 	}
 
-	base_freq = sg_policy->policy->cur;
+	base_freq = max(sg_policy->policy->cur,sg_policy->tunables->fas_min_boost_freq);
 	freq_index = cpufreq_frequency_table_target(
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
