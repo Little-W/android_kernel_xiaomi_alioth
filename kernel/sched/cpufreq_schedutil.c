@@ -2554,14 +2554,21 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				freq_index++;
 			}
 		}
-		if(sg_policy->fas_info->limiter_jank_count >= sg_policy->tunables->fas_limiter_threshold[sg_policy->fas_info->limiter_current_step])
+		if(!is_critical_task(current))
 		{
-			if(sg_policy->fas_info->limiter_current_step < sg_policy->tunables->nfas_efficient_freqs)
+			if(sg_policy->fas_info->limiter_jank_count >= sg_policy->tunables->fas_limiter_threshold[sg_policy->fas_info->limiter_current_step])
 			{
-				sg_policy->fas_info->limiter_current_step++;
+				if(sg_policy->fas_info->limiter_current_step < sg_policy->tunables->nfas_efficient_freqs)
+				{
+					sg_policy->fas_info->limiter_current_step++;
+				}
 			}
+			max_freq_index = sg_policy->tunables->fas_efficient_freq_index[sg_policy->fas_info->limiter_current_step];
 		}
-		max_freq_index = sg_policy->tunables->fas_efficient_freq_index[sg_policy->fas_info->limiter_current_step];
+		else
+		{
+			max_freq_index = sg_policy->fas_info->proc_max_freq_index;
+		}
 	}
 	else 
 	{
