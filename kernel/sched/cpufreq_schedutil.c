@@ -73,6 +73,7 @@ struct fas_info {
 	int   last_process_id;
 	int   max_freq_index;
 	int last_ui_frame_time;
+	int delta_ui_frame_time;
 };
 
 struct sugov_tunables {
@@ -2263,8 +2264,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 			  int ui_frame_time, ktime_t cur_time)
 {
 	u32 base_freq;
-	int freq_index;
-	int delta_ui_frame_time;
+	unsigned int freq_index;
 	
 	if (sg_policy->fas_info->critical_task_boost) 
 	{
@@ -2302,33 +2302,50 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 			(current->pid != sg_policy->fas_info->last_process_id))
 	{
 		sg_policy->fas_info->last_ui_frame_time = 0;
+		sg_policy->fas_info->delta_ui_frame_time = 0;
 		sg_policy->fas_info->pid_period_end_time = cur_time + FAS_PID_TIMER_INTERVAL;
 		if(current->pid != sg_policy->fas_info->last_process_id)
 		{
-		sg_policy->fas_info->last_process_id = current->pid;
+			sg_policy->fas_info->last_process_id = current->pid;
 		}
 	}
 
-	sg_policy->fas_info->fas_jank_boost_end_time =
-		cur_time + (sg_policy->fas_info->critical_task_boost ?
-			 FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
-			 FAS_JANK_BOOST_DURATION);
+	if(sg_policy->fas_info->fas_jank_boost_end_time <= cur_time)
+	{
+		sg_policy->fas_info->fas_jank_boost_end_time =
+			cur_time + (sg_policy->fas_info->critical_task_boost ?
+				FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
+				FAS_JANK_BOOST_DURATION);
+	}
 
-	delta_ui_frame_time =
+	sg_policy->fas_info->delta_ui_frame_time =
 		sg_policy->fas_info->last_ui_frame_time ?
-			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time) : 0;
+			(0.1 * sg_policy->fas_info->delta_ui_frame_time +
+			 0.9 * (ui_frame_time - sg_policy->fas_info->last_ui_frame_time))  :
+			0;
+
 
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
-		freq_index +=
-			(ui_frame_time + delta_ui_frame_time) /
-			sg_policy->tunables->fas_target_frametime;
+		if(sg_policy->fas_info->delta_ui_frame_time > -50)
+		{
+			freq_index += ui_frame_time /
+				      sg_policy->tunables->fas_target_frametime;
+			if(sg_policy->fas_info->delta_ui_frame_time > 500)
+			{
+				freq_index++;
+			}
+		}
 	}
 	else 
 	{
 		freq_index +=
-			(ui_frame_time + delta_ui_frame_time) /
+			(ui_frame_time + sg_policy->fas_info->delta_ui_frame_time) /
 			sg_policy->tunables->fas_critical_task_target_frametime;
+		if(sg_policy->fas_info->delta_ui_frame_time > 200)
+		{
+			freq_index++;
+		}
 	}
 
 	if(freq_index > sg_policy->fas_info->max_freq_index)
