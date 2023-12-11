@@ -28,10 +28,13 @@
 #define DEFAULT_TARGET_LOAD_HP 80
 #define DEFAULT_TARGET_LOAD_PR 85
 
-#define FAS_JANK_THRESHOLD 30
+#define FAS_CTB_JANK_THRESHOLD 30
+#define FAS_LIMITER_JANK_THRESHOLD 30
+
 const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CTB_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
+const u64 FAS_LIMITER_TIMER_INTERVAL = 200 * NSEC_PER_MSEC;
 const u64 FAS_PID_TIMER_INTERVAL = 5000 * NSEC_PER_MSEC;
 
 
@@ -54,6 +57,41 @@ static u64 default_down_delay_hp[] = {CONFIG_SCHEDUTIL_DEFAULT_DOWN_DELAY_HP_STE
 static unsigned int default_adaptive_down_freq_pr[] = {CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP1,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP2,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_LOW_FREQ_PR_STEP3};
 static u64 default_down_delay_pr[] = {CONFIG_SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP1 * NSEC_PER_MSEC,CONFIG_SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP2 * NSEC_PER_MSEC,CONFIG_SCHEDUTIL_DEFAULT_DOWN_DELAY_PR_STEP3 * NSEC_PER_MSEC};
 
+static unsigned int default_fas_efficient_freqs_lp[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_LP,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_LP,
+	1804800
+};
+
+static unsigned int default_fas_efficient_freqs_hp[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_HP,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_HP,
+	2419200
+};
+static unsigned int default_fas_efficient_freqs_pr[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_PR,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_PR,
+	3187200
+};
+
+static unsigned int default_fas_limiter_threshold_lp[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_LP,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_LP,
+	0
+};
+
+static unsigned int default_fas_limiter_threshold_hp[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_HP,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_HP,
+	0
+};
+
+static unsigned int default_fas_limiter_threshold_pr[] = {
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_PR,
+	CONFIG_SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_PR,
+	0
+};
+
 
 
 static unsigned int default_hispeed_freq_lp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_LP;
@@ -62,18 +100,21 @@ static unsigned int default_hispeed_freq_hp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED
 
 static unsigned int default_hispeed_freq_pr = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_PR;
 struct fas_info {
-	u8    jank_count;
+	u8    ctb_jank_count;
+	u8    limiter_jank_count;
 	u32   freq;
 	bool  fas_jank_boost;
 	bool  critical_task_boost;
 	u64   fas_jank_boost_end_time;
 	u64   ctb_timer_end_time;
 	u64   critical_task_boost_end_time;
+	u64   limiter_period_end_time;
 	u64   pid_period_end_time;
 	int   last_process_id;
-	int   max_freq_index;
-	int last_ui_frame_time;
-	int delta_ui_frame_time;
+	int   proc_max_freq_index;
+	int   last_ui_frame_time;
+	int   delta_ui_frame_time;
+	unsigned int limiter_current_step;
 };
 
 struct sugov_tunables {
@@ -94,7 +135,11 @@ struct sugov_tunables {
 	int 			current_step_up;
 	int 			current_step_down;
 	unsigned int		rtg_boost_freq;
-	unsigned int		fas_efficient_freq;
+	unsigned int		*fas_efficient_freqs;
+	unsigned int		*fas_limiter_threshold;
+	unsigned int    	*fas_efficient_freq_index;
+    struct cpufreq_policy *internal_policy;
+	int 			nfas_efficient_freqs;	
 	bool			frame_aware;
 	unsigned int	fas_target_frametime;
 	unsigned int	fas_critical_task_target_frametime;
@@ -1145,7 +1190,6 @@ static unsigned int *resolve_data_freq (const char *buf, int *num_ret,size_t cou
 			break;
 		cp++;
 	}
-
 	*num_ret = num;
 	return output;
 
@@ -1153,6 +1197,55 @@ err_kfree:
 	kfree(output);
 	return NULL;
 
+}
+
+static unsigned int *resolve_fas_efficient_freq (const char *buf, int *num_ret,size_t count, struct cpufreq_policy *policy)
+{
+	const char *cp;
+	unsigned int *output;
+	int num = 1, i;
+
+	cp = buf;
+	while ((cp = strpbrk(cp + 1, " ")))
+		num++;
+
+	output = kmalloc((num + 1) * sizeof(unsigned int), GFP_KERNEL);
+
+	cp = buf;
+	i = 0;
+	while (i < num && cp-buf<count) {
+		if (sscanf(cp, "%u", &output[i++]) != 1)
+			goto err_kfree;
+
+		cp = strpbrk(cp, " ");
+		if (!cp)
+			break;
+		cp++;
+	}
+	output[i] = policy->max;
+	*num_ret = num;
+	return output;
+
+err_kfree:
+	kfree(output);
+	return NULL;
+
+}
+
+static unsigned int *resolve_freq_index (unsigned int *freqs, struct cpufreq_policy	*policy, int num)
+{
+	unsigned int *output;
+	output = kmalloc(num * sizeof(unsigned int), GFP_KERNEL);
+	int i;
+	if(!output)
+		goto err;
+	for(i = 0; i < num; i++)
+	{
+		output[i] = cpufreq_frequency_table_target(policy, freqs[i], CPUFREQ_RELATION_L);
+	}
+	return output;
+err:
+	return NULL;
 }
 
 static u64 *resolve_data_delay (const char *buf, int *num_ret,size_t count)
@@ -1190,6 +1283,38 @@ static u64 *resolve_data_delay (const char *buf, int *num_ret,size_t count)
 
 err_kfree:
 	kfree(output);
+	return NULL;
+
+}
+
+static unsigned int *resolve_limiter_threshold (const char *buf, int num, size_t count)
+{
+	const char *cp;
+	unsigned int *output;
+	int i = 0;
+	output = kzalloc((num+1) * sizeof(unsigned int), GFP_KERNEL);
+
+	if(!output)
+		goto err;
+
+	cp = buf;
+	while (i < num && cp-buf < count) {
+		if (sscanf(cp, "%llu", &output[i]) == 1) {
+			i++;
+		} else {
+			goto err_kfree;
+		}
+		cp = strpbrk(cp, " ");
+		if (!cp)
+			break;
+		cp++;
+	}
+	output[i] = 0;
+	return output;
+
+err_kfree:
+	kfree(output);
+err:
 	return NULL;
 
 }
@@ -1362,21 +1487,80 @@ static ssize_t rtg_boost_freq_store(struct gov_attr_set *attr_set,
 	return count;
 }
 
-static ssize_t fas_efficient_freq_show(struct gov_attr_set *attr_set, char *buf)
+static ssize_t fas_efficient_freqs_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	int i;
+	ssize_t ret = 0;
 
-	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_efficient_freq);
+	for (i = 0; i < tunables->nfas_efficient_freqs; i++)
+		ret += sprintf(buf + ret, "%llu%s", tunables->fas_efficient_freqs[i], " ");
+
+	sprintf(buf + ret - 1, "\n");
+
+	return ret;
 }
 
-static ssize_t fas_efficient_freq_store(struct gov_attr_set *attr_set,
-				    const char *buf, size_t count)
+static ssize_t fas_efficient_freqs_store(struct gov_attr_set *attr_set,
+					const char *buf, size_t count)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
-	unsigned int val;
-	if (kstrtouint(buf, 10, &val))
-		return -EINVAL;
-	tunables->fas_efficient_freq = val;
+	int new_num;
+	unsigned int *new_fas_efficient_freqs = NULL, *new_fas_efficient_freq_index = NULL,*old;
+
+	new_fas_efficient_freqs = resolve_fas_efficient_freq(buf, &new_num, count,tunables->internal_policy);
+
+	if (new_fas_efficient_freqs) {
+	    old = tunables->fas_efficient_freqs;
+	    tunables->fas_efficient_freqs = new_fas_efficient_freqs;
+	    tunables->nfas_efficient_freqs = new_num;
+	    if (old != default_fas_efficient_freqs_lp
+	     && old != default_fas_efficient_freqs_hp
+	     && old != default_fas_efficient_freqs_pr)
+	        kfree(old);
+		new_fas_efficient_freq_index = resolve_freq_index(tunables->fas_efficient_freqs,tunables->internal_policy,tunables->nfas_efficient_freqs + 1);
+		if(new_fas_efficient_freq_index)
+		{
+			old = tunables->fas_efficient_freq_index;
+			kfree(old);
+			tunables->fas_efficient_freq_index = new_fas_efficient_freq_index;
+		}
+	}
+
+	return count;
+}
+
+static ssize_t fas_limiter_threshold_show(struct gov_attr_set *attr_set, char *buf)
+{
+	int i;
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	ssize_t ret = 0;
+
+	for (i = 0; i < tunables->nfas_efficient_freqs; i++)
+		ret += sprintf(buf + ret, "%llu%s", tunables->fas_limiter_threshold[i], " ");
+
+	sprintf(buf + ret - 1, "\n");
+
+	return ret;
+}
+
+static ssize_t fas_limiter_threshold_store(struct gov_attr_set *attr_set,
+					const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	unsigned int *new_fas_limiter_threshold = NULL, *old;
+
+ 	new_fas_limiter_threshold = resolve_limiter_threshold(buf, tunables->nfas_efficient_freqs, count);
+
+	if (new_fas_limiter_threshold) {
+	    old = tunables->fas_limiter_threshold;
+	    tunables->fas_limiter_threshold = new_fas_limiter_threshold;
+	    if (old != default_fas_limiter_threshold_lp
+	     && old != default_fas_limiter_threshold_hp
+	     && old != default_fas_limiter_threshold_pr)
+	        kfree(old);
+	}
+
 	return count;
 }
 
@@ -1730,7 +1914,8 @@ static ssize_t target_load_store(struct gov_attr_set *attr_set,
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
 static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
-static struct governor_attr fas_efficient_freq = __ATTR_RW(fas_efficient_freq);
+static struct governor_attr fas_efficient_freqs = __ATTR_RW(fas_efficient_freqs);
+static struct governor_attr fas_limiter_threshold = __ATTR_RW(fas_limiter_threshold);
 static struct governor_attr frame_aware = __ATTR_RW(frame_aware);
 static struct governor_attr fas_target_frametime = __ATTR_RW(fas_target_frametime);
 static struct governor_attr fas_critical_task_boost_duration_ms = __ATTR_RW(fas_critical_task_boost_duration_ms);
@@ -1752,7 +1937,8 @@ static struct attribute *sugov_attributes[] = {
 	&hispeed_freq.attr,
 	&target_load.attr,
 	&rtg_boost_freq.attr,
-	&fas_efficient_freq.attr,
+	&fas_efficient_freqs.attr,
+	&fas_limiter_threshold.attr,
 	&frame_aware.attr,
 	&fas_target_frametime.attr,
 	&fas_critical_task_target_frametime.attr,
@@ -1901,7 +2087,8 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->pl = tunables->pl;
 	cached->hispeed_load = tunables->hispeed_load;
 	cached->rtg_boost_freq = tunables->rtg_boost_freq;
-	cached->fas_efficient_freq = tunables->fas_efficient_freq;
+	cached->fas_efficient_freqs = tunables->fas_efficient_freqs;
+	cached->fas_limiter_threshold = tunables->fas_limiter_threshold;
 	cached->frame_aware = tunables->frame_aware;
 	cached->fas_target_frametime = tunables->fas_target_frametime;
 	cached->fas_critical_task_target_frametime = tunables->fas_critical_task_target_frametime;
@@ -1942,7 +2129,8 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->pl = cached->pl;
 	tunables->hispeed_load = cached->hispeed_load;
 	tunables->rtg_boost_freq = cached->rtg_boost_freq;
-	tunables->fas_efficient_freq = cached->fas_efficient_freq;
+	tunables->fas_efficient_freqs = cached->fas_efficient_freqs;
+	tunables->fas_limiter_threshold = cached->fas_limiter_threshold;
 	tunables->frame_aware = cached->frame_aware;
 	tunables->fas_target_frametime = cached->fas_target_frametime;
 	tunables->fas_critical_task_target_frametime = cached->fas_critical_task_target_frametime;
@@ -2014,8 +2202,12 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto stop_kthread;
 	}	
 	
-	fas_info->max_freq_index = cpufreq_frequency_table_target(policy, policy->max,
+	fas_info->proc_max_freq_index = cpufreq_frequency_table_target(policy, policy->max,
 						     CPUFREQ_RELATION_L);
+
+	kzalloc(sizeof(*tunables), GFP_KERNEL); 
+
+
 	sg_policy->fas_info = fas_info;
 	
 	
@@ -2027,7 +2219,9 @@ static int sugov_init(struct cpufreq_policy *policy)
     	tunables->nadaptive_up_freq = ARRAY_SIZE(default_adaptive_up_freq_lp);
 		tunables->adaptive_down_freq = default_adaptive_down_freq_lp;
     	tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_lp);
-
+		tunables->fas_efficient_freqs = default_fas_efficient_freqs_lp;
+		tunables->fas_limiter_threshold = default_fas_limiter_threshold_lp;
+    	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_lp) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_LP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_LP;
 		tunables->hispeed_freq = default_hispeed_freq_lp;
@@ -2041,12 +2235,14 @@ static int sugov_init(struct cpufreq_policy *policy)
 	} else if (cpumask_test_cpu(sg_policy->policy->cpu, cpu_perf_mask)) {
 		tunables->up_rate_limit_us = CONFIG_SCHEDUTIL_UP_RATE_LIMIT_PERF;
 		tunables->down_rate_limit_us = CONFIG_SCHEDUTIL_DOWN_RATE_LIMIT_PERF;
-
 		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_HP;
 		tunables->adaptive_up_freq = default_adaptive_up_freq_hp;
 		tunables->nadaptive_up_freq = ARRAY_SIZE(default_adaptive_up_freq_hp);
 		tunables->adaptive_down_freq = default_adaptive_down_freq_hp;
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_hp);
+		tunables->fas_efficient_freqs = default_fas_efficient_freqs_hp;
+		tunables->fas_limiter_threshold = default_fas_limiter_threshold_hp;
+    	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_hp) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_HP;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_HP;
 		tunables->hispeed_freq = default_hispeed_freq_hp;
@@ -2060,12 +2256,14 @@ static int sugov_init(struct cpufreq_policy *policy)
 	} else {
 		tunables->up_rate_limit_us = CONFIG_SCHEDUTIL_UP_RATE_LIMIT_PRIME;
 		tunables->down_rate_limit_us = CONFIG_SCHEDUTIL_DOWN_RATE_LIMIT_PRIME;
-		
-		tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_PR;
+				tunables->powersave_freq = CONFIG_DEFAULT_POWERSAVE_FREQ_PR;
 		tunables->adaptive_up_freq = default_adaptive_up_freq_pr;
 		tunables->nadaptive_up_freq = ARRAY_SIZE(default_adaptive_up_freq_pr);
 		tunables->adaptive_down_freq = default_adaptive_down_freq_pr;
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_pr);
+		tunables->fas_efficient_freqs = default_fas_efficient_freqs_pr;
+		tunables->fas_limiter_threshold = default_fas_limiter_threshold_pr;
+    	tunables->nfas_efficient_freqs = ARRAY_SIZE(default_fas_efficient_freqs_pr) - 1;
 		tunables->target_load = DEFAULT_TARGET_LOAD_PR;
 		tunables->hispeed_load = DEFAULT_HISPEED_LOAD_PR;
 		tunables->hispeed_freq = default_hispeed_freq_pr;
@@ -2078,23 +2276,22 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->limit_freq_userspace_ctl = false;
 
 	}
-
+	
 	switch (policy->cpu) {
 	default:
 	case 0:
 		tunables->rtg_boost_freq = DEFAULT_CPU0_RTG_BOOST_FREQ;
-		tunables->fas_efficient_freq = CONFIG_DEFAULT_CPU0_FAS_EFFICIENT_FREQ;
 		break;
 	case 4:
 		tunables->rtg_boost_freq = DEFAULT_CPU4_RTG_BOOST_FREQ;
-		tunables->fas_efficient_freq = CONFIG_DEFAULT_CPU4_FAS_EFFICIENT_FREQ;
 		break;
 	case 7:
 		tunables->rtg_boost_freq = DEFAULT_CPU7_RTG_BOOST_FREQ;
-		tunables->fas_efficient_freq = CONFIG_DEFAULT_CPU7_FAS_EFFICIENT_FREQ;
 		break;
 	}
 
+	tunables->fas_efficient_freq_index = resolve_freq_index(tunables->fas_efficient_freqs,policy,tunables->nfas_efficient_freqs);
+	tunables->internal_policy = policy;
 	tunables->frame_aware = true;
 	tunables->fas_target_frametime = CONFIG_SCHEDUTIL_FAS_TARGET_FRAME_TIME;
 	tunables->fas_critical_task_target_frametime = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_FRAME_TIME;
@@ -2263,9 +2460,10 @@ static struct cpufreq_governor schedutil_gov = {
 static void fas_boost_ctl(struct sugov_policy *sg_policy,
 			  int ui_frame_time, ktime_t cur_time)
 {
-	u32 base_freq;
+	unsigned int base_freq;
 	unsigned int freq_index;
-	
+	unsigned int max_freq_index;
+
 	if (sg_policy->fas_info->critical_task_boost) 
 	{
 		if (sg_policy->fas_info->critical_task_boost_end_time < cur_time)
@@ -2276,9 +2474,9 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 
 	if (sg_policy->fas_info->ctb_timer_end_time >= cur_time)
 	{
-		if (sg_policy->fas_info->jank_count < FAS_JANK_THRESHOLD)
+		if (sg_policy->fas_info->ctb_jank_count < FAS_CTB_JANK_THRESHOLD)
 		{
-			sg_policy->fas_info->jank_count++;
+			sg_policy->fas_info->ctb_jank_count++;
 		}
 		else 
 		{
@@ -2290,11 +2488,31 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	}
 	else
 	{
-		sg_policy->fas_info->jank_count = 0;
+		sg_policy->fas_info->ctb_jank_count = 0;
 		sg_policy->fas_info->ctb_timer_end_time = cur_time + FAS_CTB_TIMER_INTERVAL;
 	}
 
-	base_freq = max(sg_policy->tunables->fas_efficient_freq, sg_policy->policy->cur);
+
+	if (sg_policy->fas_info->limiter_period_end_time >= cur_time)
+	{
+		if (sg_policy->fas_info->limiter_jank_count < FAS_CTB_JANK_THRESHOLD)
+		{
+			sg_policy->fas_info->limiter_jank_count++;
+		}
+	}
+	else
+	{
+		if (sg_policy->fas_info->limiter_jank_count <
+			    sg_policy->tunables->fas_limiter_threshold
+				    [sg_policy->fas_info->limiter_current_step] &&
+		    sg_policy->fas_info->limiter_current_step) {
+			sg_policy->fas_info->limiter_current_step--;
+		}
+		sg_policy->fas_info->limiter_jank_count = 0;
+		sg_policy->fas_info->limiter_period_end_time = cur_time + FAS_LIMITER_TIMER_INTERVAL;
+	}
+
+	base_freq = sg_policy->policy->cur;
 	freq_index = cpufreq_frequency_table_target(
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
@@ -2336,6 +2554,14 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				freq_index++;
 			}
 		}
+		if(sg_policy->fas_info->limiter_jank_count >= sg_policy->tunables->fas_limiter_threshold[sg_policy->fas_info->limiter_current_step])
+		{
+			if(sg_policy->fas_info->limiter_current_step < sg_policy->tunables->nfas_efficient_freqs)
+			{
+				sg_policy->fas_info->limiter_current_step++;
+			}
+		}
+		max_freq_index = sg_policy->tunables->fas_efficient_freq_index[sg_policy->fas_info->limiter_current_step];
 	}
 	else 
 	{
@@ -2346,11 +2572,12 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 		{
 			freq_index++;
 		}
+		max_freq_index = sg_policy->fas_info->proc_max_freq_index;
 	}
 
-	if(freq_index > sg_policy->fas_info->max_freq_index)
+	if(freq_index > max_freq_index)
 	{
-		freq_index = sg_policy->fas_info->max_freq_index;
+		freq_index = max_freq_index;
 	}
 	
 	sg_policy->fas_info->freq =

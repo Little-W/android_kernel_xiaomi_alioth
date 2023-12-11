@@ -382,29 +382,186 @@ config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS
 	help
 	  This sets schedutil's fas boost duration for citical tasks in milliseconds.
 
-config DEFAULT_CPU0_FAS_EFFICIENT_FREQ
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_LP
+	int "Default fas efficient frequency for schedutil"
+	default 1612800
+	help
+	  This sets schedutil's first fas efficient frequency of lp cluster. 
+	  This is the maximum of CPU frequency when janks are 
+	  detected and FAS boost is triggered."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_LP
 	int "Default fas efficient frequency for schedutil"
 	default 1804800
 	help
-	  This sets schedutil's fas efficient frequency of cpu0. 
-	  This is the minimum CPU frequency when janks are 
+	  This sets schedutil's second fas efficient frequency of lp cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_3_LP
+	int "Default fas efficient frequency for schedutil"
+	default 1804800
+	help
+	  This sets schedutil's third fas efficient frequency of lp cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_HP
+	int "Default fas efficient frequency for schedutil"
+	default 1862400
+	help
+	  This sets schedutil's first fas efficient frequency of hp cluster. 
+	  This is the maximum of CPU frequency when janks are 
 	  detected and FAS boost is triggered."
 
-config DEFAULT_CPU4_FAS_EFFICIENT_FREQ
-	  int "Default fas efficient frequency for schedutil"
-	  default 1766400
-	  help
-		This sets schedutil's fas efficient frequency of cpu4. 
-		This is the minimum CPU frequency when janks are 
-		detected and FAS boost is triggered."	 
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_HP
+	int "Default fas efficient frequency for schedutil"
+	default 2246400
+	help
+	  This sets schedutil's second fas efficient frequency of hp cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
 
-config DEFAULT_CPU7_FAS_EFFICIENT_FREQ
-		int "Default fas efficient frequency for schedutil"
-		default 2073600
-		help
-		  This sets schedutil's fas efficient frequency of cpu7. 
-		  This is the minimum CPU frequency when janks are 
-		  detected and FAS boost is triggered."		
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_3_HP
+	int "Default fas efficient frequency for schedutil"
+	default 2419200
+	help
+	  This sets schedutil's third fas efficient frequency of hp cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_1_PR
+	int "Default fas efficient frequency for schedutil"
+	default 2073600
+	help
+	  This sets schedutil's first fas efficient frequency of pr cluster. 
+	  This is the maximum of CPU frequency when janks are 
+	  detected and FAS boost is triggered."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_2_PR
+	int "Default fas efficient frequency for schedutil"
+	default 2457600
+	help
+	  This sets schedutil's second fas efficient frequency of pr cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
+
+config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_3_PR
+	int "Default fas efficient frequency for schedutil"
+	default 3187200
+	help
+	  This sets schedutil's third fas efficient frequency of pr cluster. 
+	  This is the maximum of FAS boost frequency when janks are detected,
+	  but the drop count has not reached the threshold."
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_LP
+	int "Default fas limiter threshold for schedutil"
+	default 1
+	help
+	  This sets schedutil's first fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_LP
+	int "Default fas limiter threshold for schedutil"
+	default 2
+	help
+	  This sets schedutil's second fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_3_LP
+	int "Default fas limiter threshold for schedutil"
+	default 3
+	help
+	  This sets schedutil's third fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_LP
+	int "Default fas limiter threshold for schedutil"
+	default 1
+	help
+	  This sets schedutil's first fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_LP
+	int "Default fas limiter threshold for schedutil"
+	default 2
+	help
+	  This sets schedutil's second fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_3_LP
+	int "Default fas limiter threshold for schedutil"
+	default 3
+	help
+	  This sets schedutil's third fas limiter threshold of lp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_HP
+	int "Default fas limiter threshold for schedutil"
+	default 1
+	help
+	  This sets schedutil's first fas limiter threshold of hp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_HP
+	int "Default fas limiter threshold for schedutil"
+	default 3
+	help
+	  This sets schedutil's second fas limiter threshold of hp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_3_HP
+	int "Default fas limiter threshold for schedutil"
+	default 4
+	help
+	  This sets schedutil's third fas limiter threshold of hp cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_1_PR
+	int "Default fas limiter threshold for schedutil"
+	default 1
+	help
+	  This sets schedutil's first fas limiter threshold of prime cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_2_PR
+	int "Default fas limiter threshold for schedutil"
+	default 3
+	help
+	  This sets schedutil's second fas limiter threshold of prime cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
+
+config SCHEDUTIL_DEFAULT_FAS_LIMITER_THRESHOLD_3_PR
+	int "Default fas limiter threshold for schedutil"
+	default 4
+	help
+	  This sets schedutil's third fas limiter threshold of prime cluster. 
+	  Only when the number of dropped frames exceeds this threshold 
+	  within a 200-millisecond window will the maximum frequency be 
+	  allowed to be set to the frequency value of the next step.
 
 config SCHEDUTIL_UP_RATE_LIMIT_LP
 	int "Default up rate-limit for schedutil"
