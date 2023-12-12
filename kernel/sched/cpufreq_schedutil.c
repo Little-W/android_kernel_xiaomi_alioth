@@ -2565,7 +2565,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
-		if(delta_ui_frame_time > -50)
+		if(delta_ui_frame_time > -200)
 		{
 			freq_index += ui_frame_time /
 				      sg_policy->tunables->fas_target_frametime;
