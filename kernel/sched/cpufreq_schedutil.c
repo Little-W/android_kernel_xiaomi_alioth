@@ -35,7 +35,6 @@ const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CTB_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
 const u64 FAS_LIMITER_TIMER_INTERVAL = 200 * NSEC_PER_MSEC;
-const u64 FAS_PID_TIMER_INTERVAL = 5000 * NSEC_PER_MSEC;
 
 
 static unsigned int default_adaptive_up_freq_lp[] = {CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP1,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP2,CONFIG_SCHEDUTIL_DEFAULT_ADAPTIVE_HIGH_FREQ_LP_STEP3};
@@ -109,11 +108,9 @@ struct fas_info {
 	u64   ctb_timer_end_time;
 	u64   critical_task_boost_end_time;
 	u64   limiter_period_end_time;
-	u64   pid_period_end_time;
 	int   last_process_id;
 	int   proc_max_freq_index;
 	int   last_ui_frame_time;
-	int   delta_ui_frame_time;
 	unsigned int limiter_current_step;
 };
 
@@ -2489,6 +2486,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	unsigned int base_freq;
 	unsigned int freq_index;
 	unsigned int max_freq_index;
+	int delta_ui_frame_time;
 
 	if (sg_policy->fas_info->critical_task_boost) 
 	{
@@ -2542,16 +2540,10 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	freq_index = cpufreq_frequency_table_target(
 		sg_policy->policy, base_freq, CPUFREQ_RELATION_L);
 
-	if ((sg_policy->fas_info->pid_period_end_time < cur_time) ||
-			(current->pid != sg_policy->fas_info->last_process_id))
+	if (current->pid != sg_policy->fas_info->last_process_id)
 	{
 		sg_policy->fas_info->last_ui_frame_time = 0;
-		sg_policy->fas_info->delta_ui_frame_time = 0;
-		sg_policy->fas_info->pid_period_end_time = cur_time + FAS_PID_TIMER_INTERVAL;
-		if(current->pid != sg_policy->fas_info->last_process_id)
-		{
-			sg_policy->fas_info->last_process_id = current->pid;
-		}
+		sg_policy->fas_info->last_process_id = current->pid;
 	}
 
 	if(sg_policy->fas_info->fas_jank_boost_end_time <= cur_time)
@@ -2562,20 +2554,19 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				FAS_JANK_BOOST_DURATION);
 	}
 
-	sg_policy->fas_info->delta_ui_frame_time =
+	delta_ui_frame_time =
 		sg_policy->fas_info->last_ui_frame_time ?
-			(0.1 * sg_policy->fas_info->delta_ui_frame_time +
-			 0.9 * (ui_frame_time - sg_policy->fas_info->last_ui_frame_time))  :
+			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time)  :
 			0;
 
 
 	if (!sg_policy->fas_info->critical_task_boost)
 	{
-		if(sg_policy->fas_info->delta_ui_frame_time > -50)
+		if(delta_ui_frame_time > -50)
 		{
 			freq_index += ui_frame_time /
 				      sg_policy->tunables->fas_target_frametime;
-			if(sg_policy->fas_info->delta_ui_frame_time > 500)
+			if(delta_ui_frame_time > 500)
 			{
 				freq_index++;
 			}
@@ -2599,9 +2590,9 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	else 
 	{
 		freq_index +=
-			(ui_frame_time + sg_policy->fas_info->delta_ui_frame_time) /
+			(ui_frame_time + delta_ui_frame_time) /
 			sg_policy->tunables->fas_critical_task_target_frametime;
-		if(sg_policy->fas_info->delta_ui_frame_time > 200)
+		if(delta_ui_frame_time > 200)
 		{
 			freq_index++;
 		}
