@@ -28,12 +28,12 @@
 #define DEFAULT_TARGET_LOAD_HP 80
 #define DEFAULT_TARGET_LOAD_PR 85
 
-#define FAS_CTB_JANK_THRESHOLD 30
+#define FAS_CTB_JANK_THRESHOLD 15
 #define FAS_LIMITER_JANK_THRESHOLD 30
 
 const u64 FAS_JANK_BOOST_DURATION = 10 * 8333 * NSEC_PER_USEC;
 const u64 FAS_CRITICAL_TASK_JANK_BOOST_DURATION = 20 * 8333 * NSEC_PER_USEC;
-const u64 FAS_CTB_TIMER_INTERVAL = 1000 * NSEC_PER_MSEC;
+const u64 FAS_CTB_TIMER_INTERVAL = 500 * NSEC_PER_MSEC;
 const u64 FAS_LIMITER_TIMER_INTERVAL = 200 * NSEC_PER_MSEC;
 
 
@@ -2502,20 +2502,20 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 		{
 			sg_policy->fas_info->ctb_jank_count++;
 		}
-		else 
-		{
-			sg_policy->fas_info->critical_task_boost = true;
-			sg_policy->fas_info->critical_task_boost_end_time = cur_time +
-				sg_policy->tunables->fas_critical_task_boost_duration_ms *
-				NSEC_PER_MSEC;
-		}
 	}
 	else
 	{
 		sg_policy->fas_info->ctb_jank_count = 0;
 		sg_policy->fas_info->ctb_timer_end_time = cur_time + FAS_CTB_TIMER_INTERVAL;
 	}
-
+	
+	if(sg_policy->fas_info->ctb_jank_count == FAS_CTB_JANK_THRESHOLD || ui_frame_time > 30000)
+	{
+		sg_policy->fas_info->critical_task_boost = true;
+		sg_policy->fas_info->critical_task_boost_end_time = cur_time +
+			sg_policy->tunables->fas_critical_task_boost_duration_ms *
+			NSEC_PER_MSEC;
+	}
 
 	if (sg_policy->fas_info->limiter_period_end_time >= cur_time)
 	{
@@ -2571,7 +2571,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				freq_index++;
 			}
 		}
-		if(!is_critical_task(current))
+		if(!(is_critical_task(current) || ui_frame_time > 14000))
 		{
 			if(sg_policy->fas_info->limiter_jank_count >= sg_policy->tunables->fas_limiter_threshold[sg_policy->fas_info->limiter_current_step])
 			{
