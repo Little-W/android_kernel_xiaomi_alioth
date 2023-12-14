@@ -2571,7 +2571,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				freq_index++;
 			}
 		}
-		if(!(is_critical_task(current) || ui_frame_time > 14000))
+		if(!(is_critical_task(current) || ui_frame_time > 14000 || kp_active_mode() >= 3))
 		{
 			if(sg_policy->fas_info->limiter_jank_count >= sg_policy->tunables->fas_limiter_threshold[sg_policy->fas_info->limiter_current_step])
 			{
