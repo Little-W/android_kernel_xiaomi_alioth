@@ -20,6 +20,7 @@
 #include <misc/lyb_taskmmu.h>
 #include <linux/kprofiles.h>
 #include <linux/hwui_mon.h>
+#include <linux/devfreq_boost.h>
 
 #define MONITOR_TARGET_FRAME_TIME 4000
 
@@ -2633,6 +2634,10 @@ static void schedutil_fas_handler(
 
 	}
 	sched_boost_top_app();
+	if(ui_frame_time > 12000)
+	{
+		devfreq_boost_kick(DEVFREQ_CPU_LLCC_DDR_BW);
+	}
 	raw_spin_lock_irqsave(&rq->lock, flags);
 	fas_boost_ctl(sg_cpu->sg_policy,ui_frame_time,cur_time);
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
