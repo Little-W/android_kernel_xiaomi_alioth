@@ -20,6 +20,7 @@
 #include <misc/lyb_taskmmu.h>
 #include <linux/kprofiles.h>
 #include <linux/hwui_mon.h>
+#include <linux/devfreq_boost.h>
 
 /* Target load. Lower values result in higher CPU speeds. */
 #define DEFAULT_TARGET_LOAD_LP 75
@@ -2590,6 +2591,10 @@ static void schedutil_fas_handler(
 	fas_boost_ctl(sg_cpu->sg_policy,ui_frame_time,cur_time);
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
+	if(ui_frame_time > sg_cpu->sg_policy->tunables->fas_perf_mode_threshold)
+	{
+		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW,500);
+	}
 
 fas_handler_out:
 	put_cpu();
