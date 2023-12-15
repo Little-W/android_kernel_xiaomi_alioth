@@ -38,7 +38,7 @@ static struct {
 	loff_t inject2_offset;
 } hwui_info[] = {
 // Here, record info to support different versions of libhwui.so.
-#define INFO_COUNT 5
+#define INFO_COUNT 6
 	{
 		.checksum = "dea5f6def7787d5c89fe66e7f888455953fd8880",
 		.inject1_offset = 0x26868C,
@@ -68,6 +68,12 @@ static struct {
 		.inject1_offset = 0x4EA830,
 		.reg = 4,
 		.inject2_offset = 0x4EA848
+	},
+	{
+		.checksum = "acdff8d46934e39c10a72ace0fb887e525282d76",
+		.inject1_offset = 0x2AFC9C,
+		.reg = 4,
+		.inject2_offset = 0x2AFCB0
 	}
 };
 
