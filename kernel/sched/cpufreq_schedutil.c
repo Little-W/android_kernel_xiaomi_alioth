@@ -558,7 +558,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	if (sg_policy->tunables->frame_aware) {
 		freq = fas_get_freq(sg_policy, time);
 		if(freq)
-			goto out;
+			goto fas_freq_out;
 	}
 
 	freq = arch_scale_freq_invariant() ?
@@ -576,7 +576,6 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #endif
 
 	do_freq_limit(sg_policy, &freq, time);
-out:
 
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
@@ -585,6 +584,15 @@ out:
 	sg_policy->prev_cached_raw_freq = sg_policy->cached_raw_freq;
 	sg_policy->cached_raw_freq = freq;
 	return cpufreq_driver_resolve_freq(policy, freq);
+
+fas_freq_out:
+	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
+		return sg_policy->next_freq;
+
+	sg_policy->need_freq_update = false;
+	sg_policy->prev_cached_raw_freq = sg_policy->cached_raw_freq;
+	sg_policy->cached_raw_freq = freq;
+	return freq;
 }
 
 extern long
