@@ -550,7 +550,6 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 				  unsigned long util, unsigned long max, u64 time)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
-	kp_get_cpu_load(sg_policy->policy->cur, util * 100 / max, sg_policy->policy->cpu, time);
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
 	unsigned int walt_freq;
 #endif

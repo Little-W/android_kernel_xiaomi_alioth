@@ -16,7 +16,7 @@
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
-
+#include <linux/kprofiles.h>
 #include <soc/qcom/minidump.h>
 
 #include "../workqueue_internal.h"
@@ -2360,6 +2360,16 @@ static inline
 int select_task_rq(struct task_struct *p, int cpu, int sd_flags, int wake_flags,
 		   int sibling_count_hint)
 {
+#ifdef CONFIG_KPROFILES
+	if(game_super_task(p) || game_vip_task(p))
+	{
+		kp_set_game_mode();
+	}
+	else
+	{
+		kp_unset_game_mode();
+	}
+#endif
 	bool allow_isolated = (p->flags & PF_KTHREAD);
 	lockdep_assert_held(&p->pi_lock);
 

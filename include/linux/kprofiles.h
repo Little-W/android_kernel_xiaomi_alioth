@@ -12,7 +12,8 @@
 #ifdef CONFIG_KPROFILES
 void kp_set_mode_rollback(unsigned int level, unsigned int duration_ms);
 void kp_set_mode(unsigned int level);
-
+void kp_set_game_mode(void);
+void kp_unset_game_mode(void);
 static bool auto_kprofiles __read_mostly = true;
 static unsigned int kp_mode = CONFIG_DEFAULT_KP_MODE;
 int kp_active_mode(void);
