@@ -2534,11 +2534,13 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	}
 	else
 	{
-		if (sg_policy->fas_info->limiter_jank_count <
+		if (sg_policy->fas_info->limiter_current_step) 
+		{
+			if(sg_policy->fas_info->limiter_jank_count <
 			    sg_policy->tunables->fas_limiter_threshold
-				    [sg_policy->fas_info->limiter_current_step] &&
-		    sg_policy->fas_info->limiter_current_step) {
-			sg_policy->fas_info->limiter_current_step--;
+				    [sg_policy->fas_info->limiter_current_step-1]){
+				sg_policy->fas_info->limiter_current_step--;
+			}
 		}
 		sg_policy->fas_info->limiter_jank_count = 0;
 		sg_policy->fas_info->limiter_period_end_time = cur_time + FAS_LIMITER_TIMER_INTERVAL;
