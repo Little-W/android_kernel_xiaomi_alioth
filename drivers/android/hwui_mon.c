@@ -11,6 +11,7 @@
 #include <linux/namei.h>
 #include <linux/uaccess.h>
 #include <linux/uprobes.h>
+#include <linux/moduleparam.h>
 
 #define ZYGOTE_PATH "/system/bin/app_process64"
 #define HWUI_PATH "/system/lib64/libhwui.so"
@@ -19,6 +20,8 @@
 #define VSYNC_TIME(buf) ((ktime_t)buf[3])
 #define CHECKSUM_BUF_SIZE 1024
 
+static bool supported = false;
+module_param(supported, bool, 0444);
 static struct {
 	// sha1sum of libhwui.so
 	char checksum[SHA1_DIGEST_SIZE * 2 + 1];
@@ -240,7 +243,7 @@ static void hwui_mon_init(void)
 	    hwui_info[hwui_index].inject2_offset, &hwui_inject2_consumer);
 	if (ret)
 		goto clean;
-
+	supported = true;
 	return;
 clean:
 	path_put(&hwui_path);
