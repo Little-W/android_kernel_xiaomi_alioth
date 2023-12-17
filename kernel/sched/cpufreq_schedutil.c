@@ -63,12 +63,10 @@ static unsigned int default_hispeed_freq_hp = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED
 
 static unsigned int default_hispeed_freq_pr = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED_FREQ_PR;
 struct fas_info {
-	u8    ctb_jank_count;
 	u32   freq;
-	bool  critical_task_boost;
 	u64   fas_jank_boost_end_time;
-	u64   ctb_timer_end_time;
 	u64   critical_task_boost_end_time;
+	u64   fas_critical_task_boost_duration_ns;
 	int   last_process_id;
 	int   proc_max_freq_index;
 	int   last_ui_frame_time;
@@ -1480,11 +1478,17 @@ static ssize_t fas_critical_task_boost_duration_ms_store(struct gov_attr_set *at
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	unsigned int val;
-
+	struct sugov_policy *sg_policy;
+	unsigned long flags;
 	if (kstrtouint(buf, 10, &val))
 		return -EINVAL;
 
 	tunables->fas_critical_task_boost_duration_ms = val;
+	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
+		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
+		sg_policy->fas_info->fas_critical_task_boost_duration_ns = val * NSEC_PER_MSEC;
+		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
+	}
 	return count;
 }
 static ssize_t powersave_freq_show(struct gov_attr_set *attr_set, char *buf)
@@ -2138,6 +2142,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 	tunables->fas_target_frametime = CONFIG_SCHEDUTIL_FAS_TARGET_FRAME_TIME;
 	tunables->fas_critical_task_target_frametime = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_FRAME_TIME;
 	tunables->fas_critical_task_boost_duration_ms = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS;
+	fas_info->fas_critical_task_boost_duration_ns = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS * NSEC_PER_MSEC;
 	policy->governor_data = sg_policy;
 	sg_policy->tunables = tunables;
 
@@ -2305,34 +2310,12 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	unsigned int base_freq;
 	unsigned int freq_index;
 	int new_ui_frame_time;
-
-	if (sg_policy->fas_info->critical_task_boost) 
-	{
-		if (sg_policy->fas_info->critical_task_boost_end_time < cur_time)
-		{
-			sg_policy->fas_info->critical_task_boost = false;
-		}
-	}
-
-	if (sg_policy->fas_info->ctb_timer_end_time >= cur_time)
-	{
-		if (sg_policy->fas_info->ctb_jank_count < FAS_CTB_JANK_THRESHOLD)
-		{
-			sg_policy->fas_info->ctb_jank_count++;
-		}
-	}
-	else
-	{
-		sg_policy->fas_info->ctb_jank_count = 0;
-		sg_policy->fas_info->ctb_timer_end_time = cur_time + FAS_CTB_TIMER_INTERVAL;
-	}
+	int delta_ui_frame_time;
 	
-	if(sg_policy->fas_info->ctb_jank_count == FAS_CTB_JANK_THRESHOLD)
+	if(ui_frame_time > 20000)
 	{
-		sg_policy->fas_info->critical_task_boost = true;
 		sg_policy->fas_info->critical_task_boost_end_time = cur_time +
-			sg_policy->tunables->fas_critical_task_boost_duration_ms *
-			NSEC_PER_MSEC;
+			sg_policy->fas_info->fas_critical_task_boost_duration_ns;
 	}
 
 	base_freq = max(sg_policy->policy->cur,sg_policy->tunables->fas_min_boost_freq);
@@ -2345,26 +2328,31 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 		sg_policy->fas_info->last_process_id = current->pid;
 	}
 
-	if(sg_policy->fas_info->fas_jank_boost_end_time <= cur_time || ui_frame_time > 30000)
+	if(sg_policy->fas_info->fas_jank_boost_end_time <= cur_time)
 	{
 		sg_policy->fas_info->fas_jank_boost_end_time =
-			cur_time + (sg_policy->fas_info->critical_task_boost ?
-				FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
-				FAS_JANK_BOOST_DURATION);
+			cur_time +
+			(sg_policy->fas_info->critical_task_boost_end_time > cur_time ?
+				 FAS_CRITICAL_TASK_JANK_BOOST_DURATION :
+				 FAS_JANK_BOOST_DURATION);
 	}
 
-	new_ui_frame_time = ui_frame_time +
+	delta_ui_frame_time =
 		sg_policy->fas_info->last_ui_frame_time ?
-			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time)  :
-			0;
+			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time) : 0;
 
-	if (!(sg_policy->fas_info->critical_task_boost || is_critical_task(current) || kp_active_mode() >= 3))
+	if (!(sg_policy->fas_info->critical_task_boost_end_time > cur_time || is_critical_task(current) || kp_active_mode() >= 3))
 	{
+		new_ui_frame_time = ui_frame_time + 0.6 * delta_ui_frame_time;
 		freq_index += (new_ui_frame_time * sg_policy->tunables->fas_efficient_freq) / 
 			(sg_policy->tunables->fas_target_frametime * base_freq);
 	}
 	else 
 	{
+		new_ui_frame_time =
+			ui_frame_time + (delta_ui_frame_time > 0 ?
+						 delta_ui_frame_time :
+						 0.4 * delta_ui_frame_time);
 		freq_index += (new_ui_frame_time * sg_policy->tunables->fas_efficient_freq) / 
 			(sg_policy->tunables->fas_critical_task_target_frametime * base_freq);
 	}
