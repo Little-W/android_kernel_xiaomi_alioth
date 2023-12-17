@@ -22,8 +22,6 @@
 #include <linux/hwui_mon.h>
 #include <linux/devfreq_boost.h>
 
-#define MONITOR_TARGET_FRAME_TIME 4000
-
 /* Target load. Lower values result in higher CPU speeds. */
 #define DEFAULT_TARGET_LOAD_LP 75
 #define DEFAULT_TARGET_LOAD_HP 80
@@ -169,7 +167,12 @@ struct sugov_cpu {
 #endif
 };
 
+static void schedutil_fas_handler(int ui_frame_time, ktime_t cur_time);
 
+static struct hwui_mon_receiver schedutil_frametime_receiver = {
+	.jank_frame_time = CONFIG_SCHEDUTIL_FAS_TARGET_FRAME_TIME,
+	.jank_callback = schedutil_fas_handler
+};
 
 static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
 static unsigned int stale_ns;
@@ -192,7 +195,7 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 
 	/*
 	 * Since cpufreq_update_util() is called with rq->lock held for
-	 * the @target_cpu, our per-CPU data is fully serialized.
+	 * the @target_cpu, our perschedutil_frametime_receiver-CPU data is fully serialized.
 	 *
 	 * However, drivers cannot in general deal with cross-CPU
 	 * requests, so while get_next_freq() will work, our
@@ -1443,6 +1446,7 @@ static ssize_t fas_target_frametime_store(struct gov_attr_set *attr_set,
 		return -EINVAL;
 
 	tunables->fas_target_frametime = val;
+	schedutil_frametime_receiver.jank_frame_time = val;
 	return count;
 }
 static ssize_t fas_critical_task_target_frametime_show(struct gov_attr_set *attr_set, char *buf)
@@ -2408,11 +2412,6 @@ static void schedutil_fas_handler(
 fas_handler_out:
 	put_cpu();
 }
-
-static struct hwui_mon_receiver schedutil_frametime_receiver = {
-	.jank_frame_time = MONITOR_TARGET_FRAME_TIME,
-	.jank_callback = schedutil_fas_handler
-};
 
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
 struct cpufreq_governor *cpufreq_default_governor(void)
