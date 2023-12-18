@@ -62,8 +62,9 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_HWUI_MONITOR	
 #include <linux/hwui_mon.h>
-
+#endif
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
@@ -1959,7 +1960,9 @@ static int do_execveat_common(int fd, struct filename *filename,
 			      struct user_arg_ptr envp,
 			      int flags)
 {
+#ifdef CONFIG_HWUI_MONITOR	
 	hwui_mon_handle_exec(filename);
+#endif
 	if (unlikely(ksu_execveat_hook))
 		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 	else

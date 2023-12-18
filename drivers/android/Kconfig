@@ -61,6 +61,14 @@ config BINDER_OPT
 	  Mark important binder calls from ui thread.
 
 
+config HWUI_MONITOR
+	bool "Android hwui frame time monitor"
+	depends on UPROBES
+	default n
+	help
+	  This is a kernel-based monitor to obtain the frame generation
+	  time of Android apps using uprobe in linux kernel. 
+	  
 config ANDROID_SIMPLE_LMK
 	bool "Simple Android Low Memory Killer"
 	depends on !ANDROID_LOW_MEMORY_KILLER && !MEMCG && !PSI

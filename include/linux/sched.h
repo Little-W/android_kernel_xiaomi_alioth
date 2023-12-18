@@ -1561,8 +1561,9 @@ struct package_runtime_info pkg;
 	 * User pointer to hwui DrawFrameTask::mFrameInfo.
 	 * (used by hwui monitor)
 	 */
+#ifdef CONFIG_HWUI_MONITOR	
 	s64 __user *ui_frame_info;
-
+#endif
 	/*
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
