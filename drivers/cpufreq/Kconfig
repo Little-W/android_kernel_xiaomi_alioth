@@ -773,25 +773,34 @@ config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR_WITH_PID_SHRINK
 	  cluster when pid shrink is enabled, usually for gaming use.
 
 if SCHEDUTIL_FAS
+
+config SCHEDUTIL_FAS_BOOST_THRESHOLD
+	int "Default fas boost threshold for schedutil"
+	default 20000
+	help
+	This sets schedutil's default boost threshold. When
+	ui_frame_time is exceeding this limit, fas will enter 
+	critical task boost state.
+
 config SCHEDUTIL_FAS_TARGET_FRAME_TIME
 	int "Default target frametime for schedutil"
 	default 4000
 	help
-	  This sets schedutil's default target fas frametime, which
-	  affects the aggressiveness of the scheduling frequency selection.
+	This sets schedutil's default target fas frametime, which
+	affects the aggressiveness of the scheduling frequency selection.
 
 config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_FRAME_TIME
 	int "Default target frametime of citical tasks for schedutil"
 	default 3000
 	help
-	  This sets schedutil's default target fas frametime for citical tasks.
-	  When frequent janks are detected, this frametime will be utilized.
+	This sets schedutil's default target fas frametime for citical tasks.
+	When frequent janks are detected, this frametime will be utilized.
 
 config SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS
 	int "FAS citical task boost duration for schedutil"
 	default 4000
 	help
-	  This sets schedutil's fas boost duration for citical tasks in milliseconds.
+	This sets schedutil's fas boost duration for citical tasks in milliseconds.
 
 config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_LP
 	int "Default fas min boost frequency for schedutil"

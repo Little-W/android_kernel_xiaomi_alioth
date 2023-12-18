@@ -98,6 +98,7 @@ struct sugov_tunables {
 	unsigned int 		fas_min_boost_freq;
 	bool			frame_aware;
 	unsigned int	fas_target_frametime;
+	unsigned int	fas_boost_threshold;
 	unsigned int	fas_critical_task_target_frametime;
 	unsigned int	fas_critical_task_boost_duration_ms;
 #endif
@@ -1440,6 +1441,25 @@ static ssize_t frame_aware_store(struct gov_attr_set *attr_set, const char *buf,
 
 	return count;
 }
+static ssize_t fas_boost_threshold_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_boost_threshold);
+}
+
+static ssize_t fas_boost_threshold_store(struct gov_attr_set *attr_set,
+				    const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	unsigned int val;
+
+	if (kstrtouint(buf, 10, &val))
+		return -EINVAL;
+
+	tunables->fas_boost_threshold = val;
+	return count;
+}
 static ssize_t fas_target_frametime_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1786,6 +1806,7 @@ static struct governor_attr fas_min_boost_freq = __ATTR_RW(fas_min_boost_freq);
 static struct governor_attr fas_efficient_freq = __ATTR_RW(fas_efficient_freq);
 static struct governor_attr frame_aware = __ATTR_RW(frame_aware);
 static struct governor_attr fas_target_frametime = __ATTR_RW(fas_target_frametime);
+static struct governor_attr fas_boost_threshold = __ATTR_RW(fas_boost_threshold);
 static struct governor_attr fas_critical_task_boost_duration_ms = __ATTR_RW(fas_critical_task_boost_duration_ms);
 static struct governor_attr fas_critical_task_target_frametime = __ATTR_RW(fas_critical_task_target_frametime);
 #endif
@@ -1811,6 +1832,7 @@ static struct attribute *sugov_attributes[] = {
 	&fas_efficient_freq.attr,
 	&frame_aware.attr,
 	&fas_target_frametime.attr,
+	&fas_boost_threshold.attr,
 	&fas_critical_task_target_frametime.attr,
 	&fas_critical_task_boost_duration_ms.attr,
 #endif
@@ -1964,6 +1986,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->fas_efficient_freq = tunables->fas_efficient_freq;
 	cached->frame_aware = tunables->frame_aware;
 	cached->fas_target_frametime = tunables->fas_target_frametime;
+	cached->fas_boost_threshold = tunables->fas_boost_threshold;
 	cached->fas_critical_task_target_frametime = tunables->fas_critical_task_target_frametime;
 	cached->fas_critical_task_boost_duration_ms = tunables->fas_critical_task_boost_duration_ms;
 #endif
@@ -2008,6 +2031,7 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->fas_efficient_freq = cached->fas_efficient_freq;
 	tunables->frame_aware = cached->frame_aware;
 	tunables->fas_target_frametime = cached->fas_target_frametime;
+	tunables->fas_boost_threshold = cached->fas_boost_threshold;
 	tunables->fas_critical_task_target_frametime = cached->fas_critical_task_target_frametime;
 	tunables->fas_critical_task_boost_duration_ms = cached->fas_critical_task_boost_duration_ms;
 #endif
@@ -2170,6 +2194,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 	}
 #ifdef CONFIG_SCHEDUTIL_FAS
 	tunables->frame_aware = true;
+	tunables->fas_boost_threshold = CONFIG_SCHEDUTIL_FAS_BOOST_THRESHOLD;
 	tunables->fas_target_frametime = CONFIG_SCHEDUTIL_FAS_TARGET_FRAME_TIME;
 	tunables->fas_critical_task_target_frametime = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_FRAME_TIME;
 	tunables->fas_critical_task_boost_duration_ms = CONFIG_SCHEDUTIL_FAS_CRITICAL_TASK_TARGET_BOOST_DURATION_MS;
@@ -2347,7 +2372,7 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 	int new_ui_frame_time;
 	int delta_ui_frame_time;
 	
-	if(ui_frame_time > 20000)
+	if(ui_frame_time > sg_policy->tunables->fas_boost_threshold)
 	{
 		sg_policy->fas_info->critical_task_boost_end_time = cur_time +
 			sg_policy->fas_info->fas_critical_task_boost_duration_ns;
@@ -2427,7 +2452,7 @@ static void schedutil_fas_handler(
 	fas_boost_ctl(sg_cpu->sg_policy,ui_frame_time,cur_time);
 	cpufreq_update_util(rq, SCHED_CPUFREQ_SKIP_LIMITS);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
-	if(ui_frame_time > 20000)
+	if(ui_frame_time > sg_cpu->sg_policy->tunables->fas_boost_threshold)
 	{
 		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW,100);
 	}
