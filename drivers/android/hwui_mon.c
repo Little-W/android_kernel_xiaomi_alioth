@@ -232,7 +232,7 @@ static void hwui_mon_init(void)
 	if (ret)
 		goto error;
 
-	hwui_inode = d_inode(hwui_path.dentry);
+	hwui_inode = d_real_inode(hwui_path.dentry);
 
 	ret = uprobe_register(hwui_inode,
 	    hwui_info[hwui_index].inject1_offset, &hwui_inject1_consumer);
