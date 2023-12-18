@@ -511,13 +511,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 #if IS_ENABLED(CONFIG_PACKAGE_RUNTIME_INFO)
 	unsigned int walt_freq;
 #endif
-	unsigned int freq;
-	
-	if (sg_policy->tunables->frame_aware) {
-		freq = fas_get_freq(sg_policy, time);
-		if(freq)
-			goto fas_freq_out;
-	}
+	unsigned int freq,fas_freq;
 
 	freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
@@ -533,8 +527,18 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	freq = map_util_freq(util, freq, max);
 #endif
 
+	if (sg_policy->tunables->frame_aware) {
+		fas_freq = fas_get_freq(sg_policy, time);
+		if(fas_freq)
+		{
+			freq = max(freq,fas_freq);
+			goto out;
+		}
+	}
+
 	do_freq_limit(sg_policy, &freq, time);
 
+out:
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
@@ -543,14 +547,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	sg_policy->cached_raw_freq = freq;
 	return cpufreq_driver_resolve_freq(policy, freq);
 
-fas_freq_out:
-	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
-		return sg_policy->next_freq;
 
-	sg_policy->need_freq_update = false;
-	sg_policy->prev_cached_raw_freq = sg_policy->cached_raw_freq;
-	sg_policy->cached_raw_freq = freq;
-	return freq;
 }
 
 extern long
