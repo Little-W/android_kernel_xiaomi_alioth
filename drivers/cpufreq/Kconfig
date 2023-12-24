@@ -855,6 +855,55 @@ config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_PR
 		is lower than this frequency, the frequency boost becomes more aggressive. 
 		Conversely, when the current frequency is higher than this frequency, 
 		the frequency boost becomes more conservative.
+
+config SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_LP
+	int "Default fas aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness of lp cluster. 
+		It is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_LP
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of lp cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_HP
+	int "Default fas aggressiveness for schedutil"
+	default 90
+	help
+		This sets schedutil's fas aggressiveness of hp cluster. 
+		It is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_HP
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of hp cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_PR
+	int "Default fas aggressiveness for schedutil"
+	default 95
+	help
+		This sets schedutil's fas aggressiveness of prime cluster. 
+		This is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_PR
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of prime cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
 endif
 
 comment "CPU frequency scaling drivers"
