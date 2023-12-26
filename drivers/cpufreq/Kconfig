@@ -826,36 +826,6 @@ config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_PR
 		This is the minimum of CPU frequency when janks are 
 		detected and FAS boost is triggered.
 
-config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_LP
-	int "Default fas efficient frequency for schedutil"
-	default 1708800
-	help
-		This sets schedutil's fas efficient frequency of lp cluster. 
-		This is a inflection point frequency. When the current frequency
-		is lower than this frequency, the frequency boost becomes more aggressive. 
-		Conversely, when the current frequency is higher than this frequency, 
-		the frequency boost becomes more conservative.
-
-config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_HP
-	int "Default fas efficient frequency for schedutil"
-	default 2054400
-	help
-		This sets schedutil's fas efficient frequency of hp cluster. 
-		This is a inflection point frequency. When the current frequency
-		is lower than this frequency, the frequency boost becomes more aggressive. 
-		Conversely, when the current frequency is higher than this frequency, 
-		the frequency boost becomes more conservative.
-
-config SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_PR
-	int "Default fas efficient frequency for schedutil"
-	default 2265600
-	help
-		This sets schedutil's fas efficient frequency of prime cluster. 
-		This is a inflection point frequency. When the current frequency
-		is lower than this frequency, the frequency boost becomes more aggressive. 
-		Conversely, when the current frequency is higher than this frequency, 
-		the frequency boost becomes more conservative.
-
 config SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_LP
 	int "Default fas aggressiveness for schedutil"
 	default 100

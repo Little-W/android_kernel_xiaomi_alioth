@@ -94,7 +94,6 @@ struct sugov_tunables {
 	int 			current_step_down;
 	unsigned int		rtg_boost_freq;
 #ifdef CONFIG_SCHEDUTIL_FAS
-	unsigned int		fas_efficient_freq;
 	unsigned int 		fas_min_boost_freq;
 	bool			frame_aware;
 	unsigned int	fas_target_frametime;
@@ -1408,24 +1407,6 @@ static ssize_t fas_min_boost_freq_store(struct gov_attr_set *attr_set,
 	return count;
 }
 
-static ssize_t fas_efficient_freq_show(struct gov_attr_set *attr_set, char *buf)
-{
-	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
-
-	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_efficient_freq);
-}
-
-static ssize_t fas_efficient_freq_store(struct gov_attr_set *attr_set,
-				    const char *buf, size_t count)
-{
-	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
-	unsigned int val;
-	if (kstrtouint(buf, 10, &val))
-		return -EINVAL;
-	tunables->fas_efficient_freq = val;
-	return count;
-}
-
 static ssize_t frame_aware_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1843,7 +1824,6 @@ static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
 #ifdef CONFIG_SCHEDUTIL_FAS
 static struct governor_attr fas_min_boost_freq = __ATTR_RW(fas_min_boost_freq);
-static struct governor_attr fas_efficient_freq = __ATTR_RW(fas_efficient_freq);
 static struct governor_attr frame_aware = __ATTR_RW(frame_aware);
 static struct governor_attr fas_target_frametime = __ATTR_RW(fas_target_frametime);
 static struct governor_attr fas_boost_threshold = __ATTR_RW(fas_boost_threshold);
@@ -1871,7 +1851,6 @@ static struct attribute *sugov_attributes[] = {
 	&rtg_boost_freq.attr,
 #ifdef CONFIG_SCHEDUTIL_FAS
 	&fas_min_boost_freq.attr,
-	&fas_efficient_freq.attr,
 	&frame_aware.attr,
 	&fas_target_frametime.attr,
 	&fas_boost_threshold.attr,
@@ -2027,7 +2006,6 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->rtg_boost_freq = tunables->rtg_boost_freq;
 #ifdef CONFIG_SCHEDUTIL_FAS
 	cached->fas_min_boost_freq = tunables->fas_min_boost_freq;
-	cached->fas_efficient_freq = tunables->fas_efficient_freq;
 	cached->frame_aware = tunables->frame_aware;
 	cached->fas_target_frametime = tunables->fas_target_frametime;
 	cached->fas_boost_threshold = tunables->fas_boost_threshold;
@@ -2074,7 +2052,6 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->rtg_boost_freq = cached->rtg_boost_freq;
 #ifdef CONFIG_SCHEDUTIL_FAS
 	tunables->fas_min_boost_freq = cached->fas_min_boost_freq;
-	tunables->fas_efficient_freq = cached->fas_efficient_freq;
 	tunables->frame_aware = cached->frame_aware;
 	tunables->fas_target_frametime = cached->fas_target_frametime;
 	tunables->fas_boost_threshold = cached->fas_boost_threshold;
@@ -2169,7 +2146,6 @@ static int sugov_init(struct cpufreq_policy *policy)
     	tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_lp);
 #ifdef CONFIG_SCHEDUTIL_FAS
 		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_LP;
-		tunables->fas_efficient_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_LP;
 		tunables->fas_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_LP;
 		tunables->fas_critical_task_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_LP;
 #endif
@@ -2193,7 +2169,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_hp);
 #ifdef CONFIG_SCHEDUTIL_FAS
 		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_HP;
-		tunables->fas_efficient_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_HP;
 		tunables->fas_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_HP;
 		tunables->fas_critical_task_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_HP;
 #endif
@@ -2217,7 +2192,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 		tunables->nadaptive_down_freq = ARRAY_SIZE(default_adaptive_down_freq_pr);
 #ifdef CONFIG_SCHEDUTIL_FAS
 		tunables->fas_min_boost_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_PR;
-		tunables->fas_efficient_freq = CONFIG_SCHEDUTIL_DEFAULT_FAS_EFFICIENT_FREQ_PR;
 		tunables->fas_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_AGGRESSIVENESS_PR;
 		tunables->fas_critical_task_aggressiveness = CONFIG_SCHEDUTIL_DEFAULT_FAS_CT_AGGRESSIVENESS_PR;
 #endif
@@ -2451,16 +2425,15 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 				 FAS_JANK_BOOST_DURATION);
 	}
 
-	delta_ui_frame_time =
+	delta_ui_frame_time =   
 		sg_policy->fas_info->last_ui_frame_time ?
 			(ui_frame_time - sg_policy->fas_info->last_ui_frame_time) : 0;
 
 	if (!(sg_policy->fas_info->critical_task_boost_end_time > cur_time || is_critical_task(current) || kp_active_mode() >= 3))
 	{
 		new_ui_frame_time = ui_frame_time + 0.6 * delta_ui_frame_time;
-		freq_index += (sg_policy->tunables->fas_aggressiveness * new_ui_frame_time * 
-				sg_policy->tunables->fas_efficient_freq) / 
-			(sg_policy->tunables->fas_target_frametime * base_freq * 100);
+		freq_index += (sg_policy->tunables->fas_aggressiveness * new_ui_frame_time ) / 
+			(sg_policy->tunables->fas_target_frametime * 100);
 	}
 	else 
 	{
@@ -2469,8 +2442,8 @@ static void fas_boost_ctl(struct sugov_policy *sg_policy,
 						 delta_ui_frame_time :
 						 0.4 * delta_ui_frame_time);
 		freq_index += (sg_policy->tunables->fas_critical_task_aggressiveness *
-				 new_ui_frame_time * sg_policy->tunables->fas_efficient_freq) / 
-			(sg_policy->tunables->fas_critical_task_target_frametime * base_freq * 100);
+				 new_ui_frame_time) / 
+			(sg_policy->tunables->fas_critical_task_target_frametime * 100);
 	}
 
 	if(freq_index > sg_policy->fas_info->proc_max_freq_index)
