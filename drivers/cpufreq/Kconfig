@@ -220,6 +220,14 @@ config CPU_FREQ_GOV_SCHEDUTIL
 
 	  If in doubt, say N.
 
+config SCHEDUTIL_FAS
+	bool "FAS(Frame Aware Scheduling) in schedutil"
+	depends on CPU_FREQ_GOV_SCHEDUTIL
+	select HWUI_MONITOR
+	default n
+	help
+	  This is a simple FAS algorithm on schedutil.
+
 config CPU_INPUT_BOOST
 	bool "CPU Input Boost"
 	help
@@ -764,6 +772,109 @@ config SCHEDUTIL_DEFAULT_EFFICIENT_FREQ_PR_WITH_PID_SHRINK
 	  This sets schedutil's default efficient frequency for the pr
 	  cluster when pid shrink is enabled, usually for gaming use.
 
+if SCHEDUTIL_FAS
+
+config SCHEDUTIL_FAS_PERFORMANCE_MODE_THRESHOLD
+	int "Default fas boost threshold for schedutil"
+	default 20000
+	help
+	This sets schedutil's default boost threshold. When
+	ui_frame_time is exceeding this limit, fas will enter 
+	critical task boost state.
+
+config SCHEDUTIL_FAS_NORMAL_MODE_TARGET_FRAME_TIME
+	int "Default target frametime for schedutil"
+	default 4000
+	help
+	This sets schedutil's default target fas frametime, which
+	affects the aggressiveness of the scheduling frequency selection.
+
+config SCHEDUTIL_FAS_PERF_MODE_TARGET_FRAME_TIME
+	int "Default target frametime of citical tasks for schedutil"
+	default 3000
+	help
+	This sets schedutil's default target fas frametime for citical tasks.
+	When frequent janks are detected, this frametime will be utilized.
+
+config SCHEDUTIL_FAS_PERF_MODE_BOOST_DURATION_MS
+	int "FAS citical task boost duration for schedutil"
+	default 4000
+	help
+	This sets schedutil's fas boost duration for citical tasks in milliseconds.
+
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_LP
+	int "Default fas min boost frequency for schedutil"
+	default 1420800
+	help
+		This sets schedutil's min boost frequency of lp cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered.
+
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_HP
+	int "Default fas min frequency for schedutil"
+	default 1574400
+	help
+		This sets schedutil's min boost frequency of hp cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered.
+
+config SCHEDUTIL_DEFAULT_FAS_MIN_BOOST_FREQ_PR
+	int "Default fas min frequency for schedutil"
+	default 1747200
+	help
+		This sets schedutil's min boost frequency of prime cluster. 
+		This is the minimum of CPU frequency when janks are 
+		detected and FAS boost is triggered.
+
+config SCHEDUTIL_DEFAULT_FAS_NORMAL_MODE_AGGRESSIVENESS_LP
+	int "Default fas aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness of lp cluster. 
+		It is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_PERF_MODE_AGGRESSIVENESS_LP
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of lp cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_NORMAL_MODE_AGGRESSIVENESS_HP
+	int "Default fas aggressiveness for schedutil"
+	default 90
+	help
+		This sets schedutil's fas aggressiveness of hp cluster. 
+		It is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_PERF_MODE_AGGRESSIVENESS_HP
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of hp cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_NORMAL_MODE_AGGRESSIVENESS_PR
+	int "Default fas aggressiveness for schedutil"
+	default 95
+	help
+		This sets schedutil's fas aggressiveness of prime cluster. 
+		This is a percentage number that controls the fas 
+		frequency rise in aggressiveness.
+
+config SCHEDUTIL_DEFAULT_FAS_PERF_MODE_AGGRESSIVENESS_PR
+	int "Default fas critical task aggressiveness for schedutil"
+	default 100
+	help
+		This sets schedutil's fas aggressiveness for critical 
+		tasks of prime cluster. It is a percentage number that 
+		controls the fas frequency rise in aggressiveness.
+
+endif
 
 comment "CPU frequency scaling drivers"
 
