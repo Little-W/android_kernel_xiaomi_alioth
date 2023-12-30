@@ -29,8 +29,12 @@
 
 #ifdef CONFIG_SCHEDUTIL_FAS
 
-#define DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_US 83333L
-#define DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_US 166666L
+#define DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_FRAME 10
+#define DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_FRAME 20
+#define FRAME_TIME_144HZ_US 6944
+#define FRAME_TIME_120HZ_US 8333
+#define FRAME_TIME_90HZ_US 11111
+#define FRAME_TIME_60HZ_US 16666
 
 #endif
 
@@ -60,6 +64,7 @@ static unsigned int default_hispeed_freq_pr = CONFIG_SCHEDUTIL_DEFAULT_HIGHSPEED
 
 #ifdef CONFIG_SCHEDUTIL_FAS
 struct fas_info {
+	int   vrefresh;
 	int   last_pid;
 	int   proc_max_freq_index;
 	int   fas_min_boost_freq_index;
@@ -96,12 +101,12 @@ struct sugov_tunables {
 	unsigned int 	fas_min_boost_freq;
 	unsigned int    fas_normal_mode_aggressiveness;
 	unsigned int	fas_normal_mode_target_frametime;
-	unsigned int    fas_normal_mode_freq_boost_duration_us;
+	unsigned int    fas_normal_mode_freq_boost_duration_frame;
 	unsigned int	fas_perf_mode_threshold;
 	unsigned int	fas_perf_mode_duration_ms;
 	unsigned int    fas_perf_mode_aggressiveness;
 	unsigned int	fas_perf_mode_target_frametime;
-	unsigned int    fas_perf_mode_freq_boost_duration_us;
+	unsigned int    fas_perf_mode_freq_boost_duration_frame;
 #endif
 	bool			pl;
 	bool			limit_up;
@@ -1527,14 +1532,14 @@ static ssize_t fas_perf_mode_target_frametime_store(struct gov_attr_set *attr_se
 	tunables->fas_perf_mode_target_frametime = val;
 	return count;
 }
-static ssize_t fas_normal_mode_freq_boost_duration_us_show(struct gov_attr_set *attr_set, char *buf)
+static ssize_t fas_normal_mode_freq_boost_duration_frame_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 
-	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_normal_mode_freq_boost_duration_us);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_normal_mode_freq_boost_duration_frame);
 }
 
-static ssize_t fas_normal_mode_freq_boost_duration_us_store(struct gov_attr_set *attr_set,
+static ssize_t fas_normal_mode_freq_boost_duration_frame_store(struct gov_attr_set *attr_set,
 				    const char *buf, size_t count)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1544,22 +1549,39 @@ static ssize_t fas_normal_mode_freq_boost_duration_us_store(struct gov_attr_set 
 	if (kstrtouint(buf, 10, &val))
 		return -EINVAL;
 
-	tunables->fas_normal_mode_freq_boost_duration_us = val;
+	tunables->fas_normal_mode_freq_boost_duration_frame = val;
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
-		sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * NSEC_PER_USEC;
+		switch(sg_policy->fas_info->vrefresh)
+		{
+			case 144:
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * FRAME_TIME_144HZ_US * NSEC_PER_USEC;
+				break;
+			case 120:
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * FRAME_TIME_120HZ_US * NSEC_PER_USEC;
+				break;
+			case 90:
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * FRAME_TIME_90HZ_US * NSEC_PER_USEC;
+				break;
+			case 60:
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * FRAME_TIME_60HZ_US * NSEC_PER_USEC;
+				break;
+			default:
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns = val * FRAME_TIME_120HZ_US * NSEC_PER_USEC;
+				break;	
+		}
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 	return count;
 }
-static ssize_t fas_perf_mode_freq_boost_duration_us_show(struct gov_attr_set *attr_set, char *buf)
+static ssize_t fas_perf_mode_freq_boost_duration_frame_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 
-	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_perf_mode_freq_boost_duration_us);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_perf_mode_freq_boost_duration_frame);
 }
 
-static ssize_t fas_perf_mode_freq_boost_duration_us_store(struct gov_attr_set *attr_set,
+static ssize_t fas_perf_mode_freq_boost_duration_frame_store(struct gov_attr_set *attr_set,
 				    const char *buf, size_t count)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1569,10 +1591,27 @@ static ssize_t fas_perf_mode_freq_boost_duration_us_store(struct gov_attr_set *a
 	if (kstrtouint(buf, 10, &val))
 		return -EINVAL;
 
-	tunables->fas_perf_mode_freq_boost_duration_us = val;
+	tunables->fas_perf_mode_freq_boost_duration_frame = val;
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
-		sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * NSEC_PER_USEC;
+		switch(sg_policy->fas_info->vrefresh)
+		{
+			case 144:
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * FRAME_TIME_144HZ_US * NSEC_PER_USEC;
+				break;
+			case 120:
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * FRAME_TIME_120HZ_US * NSEC_PER_USEC;
+				break;
+			case 90:
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * FRAME_TIME_90HZ_US * NSEC_PER_USEC;
+				break;
+			case 60:
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * FRAME_TIME_60HZ_US * NSEC_PER_USEC;
+				break;
+			default:
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns = val * FRAME_TIME_120HZ_US * NSEC_PER_USEC;
+				break;	
+		}
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 	return count;
@@ -1887,8 +1926,8 @@ static struct governor_attr fas_perf_mode_threshold = __ATTR_RW(fas_perf_mode_th
 static struct governor_attr fas_normal_mode_aggressiveness = __ATTR_RW(fas_normal_mode_aggressiveness);
 static struct governor_attr fas_perf_mode_aggressiveness = __ATTR_RW(fas_perf_mode_aggressiveness);
 static struct governor_attr fas_perf_mode_duration_ms = __ATTR_RW(fas_perf_mode_duration_ms);
-static struct governor_attr fas_perf_mode_freq_boost_duration_us = __ATTR_RW(fas_perf_mode_freq_boost_duration_us);
-static struct governor_attr fas_normal_mode_freq_boost_duration_us = __ATTR_RW(fas_normal_mode_freq_boost_duration_us);
+static struct governor_attr fas_perf_mode_freq_boost_duration_frame = __ATTR_RW(fas_perf_mode_freq_boost_duration_frame);
+static struct governor_attr fas_normal_mode_freq_boost_duration_frame = __ATTR_RW(fas_normal_mode_freq_boost_duration_frame);
 static struct governor_attr fas_perf_mode_target_frametime = __ATTR_RW(fas_perf_mode_target_frametime);
 #endif
 static struct governor_attr powersave_freq = __ATTR_RW(powersave_freq);
@@ -1917,8 +1956,8 @@ static struct attribute *sugov_attributes[] = {
 	&fas_perf_mode_aggressiveness.attr,
 	&fas_perf_mode_target_frametime.attr,
 	&fas_perf_mode_duration_ms.attr,
-	&fas_perf_mode_freq_boost_duration_us.attr,
-	&fas_normal_mode_freq_boost_duration_us.attr,
+	&fas_perf_mode_freq_boost_duration_frame.attr,
+	&fas_normal_mode_freq_boost_duration_frame.attr,
 #endif
 	&powersave_freq.attr,
 	&pl.attr,
@@ -2074,8 +2113,8 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->fas_perf_mode_aggressiveness = tunables->fas_perf_mode_aggressiveness;
 	cached->fas_perf_mode_target_frametime = tunables->fas_perf_mode_target_frametime;
 	cached->fas_perf_mode_duration_ms = tunables->fas_perf_mode_duration_ms;
-	cached->fas_perf_mode_freq_boost_duration_us = tunables->fas_perf_mode_freq_boost_duration_us;
-	cached->fas_normal_mode_freq_boost_duration_us = tunables->fas_normal_mode_freq_boost_duration_us;
+	cached->fas_perf_mode_freq_boost_duration_frame = tunables->fas_perf_mode_freq_boost_duration_frame;
+	cached->fas_normal_mode_freq_boost_duration_frame = tunables->fas_normal_mode_freq_boost_duration_frame;
 #endif
 	cached->powersave_freq = tunables->powersave_freq;
 	cached->hispeed_freq = tunables->hispeed_freq;
@@ -2122,8 +2161,8 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->fas_perf_mode_aggressiveness = cached->fas_perf_mode_aggressiveness;
 	tunables->fas_perf_mode_target_frametime = cached->fas_perf_mode_target_frametime;
 	tunables->fas_perf_mode_duration_ms = cached->fas_perf_mode_duration_ms;
-	tunables->fas_perf_mode_freq_boost_duration_us = cached->fas_perf_mode_freq_boost_duration_us;
-	tunables->fas_normal_mode_freq_boost_duration_us = cached->fas_normal_mode_freq_boost_duration_us;
+	tunables->fas_perf_mode_freq_boost_duration_frame = cached->fas_perf_mode_freq_boost_duration_frame;
+	tunables->fas_normal_mode_freq_boost_duration_frame = cached->fas_normal_mode_freq_boost_duration_frame;
 #endif
 	tunables->powersave_freq = cached->powersave_freq;
 	tunables->hispeed_freq = cached->hispeed_freq;
@@ -2302,10 +2341,10 @@ static int sugov_init(struct cpufreq_policy *policy)
 	tunables->fas_perf_mode_threshold = CONFIG_SCHEDUTIL_FAS_PERFORMANCE_MODE_THRESHOLD;
 	tunables->fas_normal_mode_target_frametime = CONFIG_SCHEDUTIL_FAS_NORMAL_MODE_TARGET_FRAME_TIME;
 	tunables->fas_perf_mode_target_frametime = CONFIG_SCHEDUTIL_FAS_PERF_MODE_TARGET_FRAME_TIME;
-	tunables->fas_normal_mode_freq_boost_duration_us = DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_US;
-	fas_info->fas_normal_mode_freq_boost_duration_ns = DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_US * NSEC_PER_USEC;
-	tunables->fas_perf_mode_freq_boost_duration_us = DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_US;
-	fas_info->fas_perf_mode_freq_boost_duration_ns = DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_US * NSEC_PER_USEC;
+	tunables->fas_normal_mode_freq_boost_duration_frame = DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_FRAME;
+	fas_info->fas_normal_mode_freq_boost_duration_ns = DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_FRAME * FRAME_TIME_144HZ_US * NSEC_PER_USEC;
+	tunables->fas_perf_mode_freq_boost_duration_frame = DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_FRAME;
+	fas_info->fas_perf_mode_freq_boost_duration_ns = DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_FRAME * FRAME_TIME_144HZ_US * NSEC_PER_USEC;
 	tunables->fas_perf_mode_duration_ms = CONFIG_SCHEDUTIL_FAS_PERF_MODE_BOOST_DURATION_MS;
 	fas_info->fas_perf_mode_duration_ns = CONFIG_SCHEDUTIL_FAS_PERF_MODE_BOOST_DURATION_MS * NSEC_PER_MSEC;
 #endif
@@ -2600,6 +2639,53 @@ fas_handler_out:
 	put_cpu();
 }
 
+void fas_ctl_by_vrefresh(int vrefresh)
+{
+	static int last_vrefresh = 0;
+	if(vrefresh != last_vrefresh)
+	{
+		last_vrefresh = vrefresh;
+		int cpu;
+		unsigned long flags;
+		struct rq *rq;
+		struct sugov_cpu *sg_cpu;
+		struct sugov_policy *sg_policy;
+		int frame_time;
+		for_each_possible_cpu(cpu) {
+			sg_cpu = &per_cpu(sugov_cpu, cpu);
+			sg_policy = sg_cpu->sg_policy;
+			if (sg_policy) {
+				rq = cpu_rq(cpu);
+				raw_spin_lock_irqsave(&rq->lock, flags);
+				sg_policy->fas_info->vrefresh = vrefresh;
+				switch(vrefresh)
+				{
+					case 144:
+						frame_time = FRAME_TIME_144HZ_US;
+						break;
+					case 120:
+						frame_time = FRAME_TIME_120HZ_US;
+						break;
+					case 90:
+						frame_time = FRAME_TIME_90HZ_US;
+						break;
+					case 60:
+						frame_time = FRAME_TIME_60HZ_US;
+						break;
+					default:
+						frame_time = FRAME_TIME_120HZ_US;
+						break;	
+				}
+				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns =
+					sg_policy->tunables->fas_normal_mode_freq_boost_duration_frame * frame_time * NSEC_PER_USEC;
+				sg_policy->fas_info->fas_perf_mode_freq_boost_duration_ns =
+					sg_policy->tunables->fas_perf_mode_freq_boost_duration_frame * frame_time * NSEC_PER_USEC;
+				raw_spin_unlock_irqrestore(&rq->lock, flags);
+			}
+		}
+	}
+}
+EXPORT_SYMBOL(fas_ctl_by_vrefresh);
 static int __init sugov_init_fas(void)
 {
 	return register_hwui_mon(&schedutil_frametime_receiver);

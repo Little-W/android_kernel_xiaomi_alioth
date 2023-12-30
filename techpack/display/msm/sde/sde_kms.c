@@ -901,6 +901,7 @@ static int _sde_kms_get_blank(struct drm_crtc_state *crtc_state,
 	return blank;
 }
 void kcal_panel_color_calibration(int vrefresh);
+void fas_ctl_by_vrefresh(int vrefresh);
 static void _sde_kms_drm_check_dpms(struct drm_atomic_state *old_state,
 			unsigned long event)
 {
@@ -919,6 +920,7 @@ static void _sde_kms_drm_check_dpms(struct drm_atomic_state *old_state,
 
 		new_fps = crtc->state->mode.vrefresh;
 		kcal_panel_color_calibration(new_fps);
+		fas_ctl_by_vrefresh(new_fps);
 		new_mode = _sde_kms_get_blank(crtc->state, connector->state);
 		if (old_conn_state->crtc) {
 			old_crtc_state = drm_atomic_get_existing_crtc_state(
