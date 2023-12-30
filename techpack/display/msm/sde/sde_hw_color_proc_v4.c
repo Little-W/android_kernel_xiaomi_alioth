@@ -32,6 +32,48 @@ module_param(kcal_sat, short, 0644);
 module_param(kcal_val, short, 0644);
 module_param(kcal_cont, short, 0644);
 
+#define default_kcal_red 255
+#define default_kcal_green 255
+#define default_kcal_blue 255
+#define default_kcal_hue 0
+#define default_kcal_sat 255
+#define default_kcal_val 255
+#define default_kcal_cont 255
+
+static unsigned short kcal_red_144 = 180;
+static unsigned short kcal_green_144 = 171;
+static unsigned short kcal_blue_144 = 190;
+static unsigned short kcal_hue_144 = 0;
+static unsigned short kcal_sat_144 = 260;
+static unsigned short kcal_val_144 = 255;
+static unsigned short kcal_cont_144 = 255;
+
+module_param(kcal_red_144, short, 0644);
+module_param(kcal_green_144, short, 0644);
+module_param(kcal_blue_144, short, 0644);
+module_param(kcal_hue_144, short, 0644);
+module_param(kcal_sat_144, short, 0644);
+module_param(kcal_val_144, short, 0644);
+module_param(kcal_cont_144, short, 0644);
+
+static unsigned short kcal_red_90 = 254;
+static unsigned short kcal_green_90 = 251;
+static unsigned short kcal_blue_90 = 255;
+static unsigned short kcal_hue_90 = 0;
+static unsigned short kcal_sat_90 = 255;
+static unsigned short kcal_val_90 = 255;
+static unsigned short kcal_cont_90 = 255;
+
+module_param(kcal_red_90, short, 0644);
+module_param(kcal_green_90, short, 0644);
+module_param(kcal_blue_90, short, 0644);
+module_param(kcal_hue_90, short, 0644);
+module_param(kcal_sat_90, short, 0644);
+module_param(kcal_val_90, short, 0644);
+module_param(kcal_cont_90, short, 0644);
+
+extern void kcal_force_update(void);
+
 static int sde_write_3d_gamut(struct sde_hw_blk_reg_map *hw,
 		struct drm_msm_3d_gamut *payload, u32 base,
 		u32 *opcode, u32 pipe, u32 scale_tbl_a_len,
@@ -232,7 +274,6 @@ void sde_setup_dspp_pccv4(struct sde_hw_dspp *ctx, void *cfg)
 	int kcal_min = 20;
 	u32 base = 0;
 	u32 opcode = 0, local_opcode = 0;
-
 	if (!ctx || !cfg) {
 		DRM_ERROR("invalid param ctx %pK cfg %pK\n", ctx, cfg);
 		return;
@@ -463,3 +504,82 @@ void sde_ltm_read_intr_status(struct sde_hw_dspp *ctx, u32 *status)
 	clear |= BIT(1) | BIT(2);
 	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->ltm.base + 0x58, clear);
 }
+
+DEFINE_MUTEX(kcal_int_lock);
+
+int kcal_internal_override(short sat, short val, short cont, short hue, short r, short g, short b)
+{
+	if (!mutex_trylock(&kcal_int_lock)) {
+		pr_info("%s kad unable to lock\n",__func__);
+		return 1;
+	}
+	kcal_sat = sat;
+	kcal_val = val;
+	kcal_cont = cont;
+	kcal_hue = hue;
+	kcal_red = r;
+	kcal_green = g;
+	kcal_blue = b;
+	kcal_force_update();
+	mutex_unlock(&kcal_int_lock);
+	return 0;
+}
+
+int kcal_internal_restore(void)
+{
+	if (!mutex_trylock(&kcal_int_lock)) {
+		pr_info("%s kad unable to lock\n",__func__);
+		return 1;
+	}
+	kcal_sat = default_kcal_sat;
+	kcal_val = default_kcal_val;
+	kcal_cont = default_kcal_cont;
+	kcal_hue = default_kcal_hue;
+	kcal_red = default_kcal_red;
+	kcal_green = default_kcal_green;
+	kcal_blue = default_kcal_blue;
+	kcal_force_update();
+
+	mutex_unlock(&kcal_int_lock);
+	return 0;
+}
+
+void kcal_panel_color_calibration(int vrefresh)
+{
+	static int last_vrefresh = 0;
+	int ret = 0;
+	if(last_vrefresh != vrefresh)
+	{
+		bool kcal_needs_update = true;
+		if ((last_vrefresh == 120 && vrefresh == 60) ||
+			(last_vrefresh == 60 && vrefresh == 120)) {
+			kcal_needs_update = false;
+		}
+		if(kcal_needs_update)
+		{
+			if(vrefresh == 144)
+			{
+				ret = kcal_internal_override(
+					kcal_sat_144, kcal_val_144,
+					kcal_cont_144, kcal_hue_144,
+					kcal_red_144, kcal_green_144,
+					kcal_blue_144);
+			}
+			else if(vrefresh == 90)
+			{
+				ret = kcal_internal_override(
+					kcal_sat_90, kcal_val_90,
+					kcal_cont_90, kcal_hue_90,
+					kcal_red_90, kcal_green_90,
+					kcal_blue_90);
+			}
+			else
+			{
+				ret = kcal_internal_restore();
+			}
+		}
+		if(!ret)
+			last_vrefresh = vrefresh;
+	}
+}
+EXPORT_SYMBOL(kcal_panel_color_calibration);
