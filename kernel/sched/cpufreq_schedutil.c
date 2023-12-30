@@ -35,6 +35,9 @@
 #define FRAME_TIME_120HZ_US 8333
 #define FRAME_TIME_90HZ_US 11111
 #define FRAME_TIME_60HZ_US 16666
+#define FRAME_COMMIT_DELAY_US 4000
+#define DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_TIME_US 90000L
+#define DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_TIME_US 180000L
 
 #endif
 
@@ -98,6 +101,7 @@ struct sugov_tunables {
 	unsigned int		rtg_boost_freq;
 #ifdef CONFIG_SCHEDUTIL_FAS
 	bool			fas_enabled;
+	bool			fas_auto_config;
 	unsigned int 	fas_min_boost_freq;
 	unsigned int    fas_normal_mode_aggressiveness;
 	unsigned int	fas_normal_mode_target_frametime;
@@ -1436,6 +1440,23 @@ static ssize_t fas_enabled_store(struct gov_attr_set *attr_set, const char *buf,
 
 	return count;
 }
+static ssize_t fas_auto_config_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", tunables->fas_auto_config);
+}
+
+static ssize_t fas_auto_config_store(struct gov_attr_set *attr_set, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	if (kstrtobool(buf, &tunables->fas_auto_config))
+		return -EINVAL;
+
+	return count;
+}
 static ssize_t fas_perf_mode_threshold_show(struct gov_attr_set *attr_set, char *buf)
 {
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
@@ -1921,6 +1942,7 @@ static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
 #ifdef CONFIG_SCHEDUTIL_FAS
 static struct governor_attr fas_min_boost_freq = __ATTR_RW(fas_min_boost_freq);
 static struct governor_attr fas_enabled = __ATTR_RW(fas_enabled);
+static struct governor_attr fas_auto_config = __ATTR_RW(fas_auto_config);
 static struct governor_attr fas_normal_mode_target_frametime = __ATTR_RW(fas_normal_mode_target_frametime);
 static struct governor_attr fas_perf_mode_threshold = __ATTR_RW(fas_perf_mode_threshold);
 static struct governor_attr fas_normal_mode_aggressiveness = __ATTR_RW(fas_normal_mode_aggressiveness);
@@ -1950,6 +1972,7 @@ static struct attribute *sugov_attributes[] = {
 #ifdef CONFIG_SCHEDUTIL_FAS
 	&fas_min_boost_freq.attr,
 	&fas_enabled.attr,
+	&fas_auto_config.attr,
 	&fas_normal_mode_target_frametime.attr,
 	&fas_perf_mode_threshold.attr,
 	&fas_normal_mode_aggressiveness.attr,
@@ -2107,6 +2130,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 #ifdef CONFIG_SCHEDUTIL_FAS
 	cached->fas_min_boost_freq = tunables->fas_min_boost_freq;
 	cached->fas_enabled = tunables->fas_enabled;
+	cached->fas_auto_config = tunables->fas_auto_config;
 	cached->fas_normal_mode_target_frametime = tunables->fas_normal_mode_target_frametime;
 	cached->fas_perf_mode_threshold = tunables->fas_perf_mode_threshold;
 	cached->fas_normal_mode_aggressiveness = tunables->fas_normal_mode_aggressiveness;
@@ -2155,6 +2179,7 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 #ifdef CONFIG_SCHEDUTIL_FAS
 	tunables->fas_min_boost_freq = cached->fas_min_boost_freq;
 	tunables->fas_enabled = cached->fas_enabled;
+	tunables->fas_auto_config = cached->fas_auto_config;
 	tunables->fas_normal_mode_target_frametime = cached->fas_normal_mode_target_frametime;
 	tunables->fas_perf_mode_threshold = cached->fas_perf_mode_threshold;
 	tunables->fas_normal_mode_aggressiveness = cached->fas_normal_mode_aggressiveness;
@@ -2338,6 +2363,7 @@ static int sugov_init(struct cpufreq_policy *policy)
 	}
 #ifdef CONFIG_SCHEDUTIL_FAS
 	tunables->fas_enabled = true;
+	tunables->fas_auto_config = true;
 	tunables->fas_perf_mode_threshold = CONFIG_SCHEDUTIL_FAS_PERFORMANCE_MODE_THRESHOLD;
 	tunables->fas_normal_mode_target_frametime = CONFIG_SCHEDUTIL_FAS_NORMAL_MODE_TARGET_FRAME_TIME;
 	tunables->fas_perf_mode_target_frametime = CONFIG_SCHEDUTIL_FAS_PERF_MODE_TARGET_FRAME_TIME;
@@ -2675,6 +2701,15 @@ void fas_ctl_by_vrefresh(int vrefresh)
 					default:
 						frame_time = FRAME_TIME_120HZ_US;
 						break;	
+				}
+				if(sg_policy->tunables->fas_auto_config)
+				{
+					schedutil_frametime_receiver.jank_frame_time = frame_time - FRAME_COMMIT_DELAY_US;
+					sg_policy->tunables->fas_normal_mode_target_frametime = frame_time - FRAME_COMMIT_DELAY_US;
+					sg_policy->tunables->fas_perf_mode_threshold = 3 * sg_policy->tunables->fas_normal_mode_target_frametime;
+					sg_policy->tunables->fas_perf_mode_target_frametime = 0.8 * frame_time - FRAME_COMMIT_DELAY_US;
+					sg_policy->tunables->fas_normal_mode_freq_boost_duration_frame = DEFAULT_FAS_NORMAL_MODE_FREQ_BOOST_DURATION_TIME_US / frame_time;
+					sg_policy->tunables->fas_perf_mode_freq_boost_duration_frame = DEFAULT_FAS_PERF_MODE_FREQ_BOOST_DURATION_TIME_US / frame_time;
 				}
 				sg_policy->fas_info->fas_normal_mode_freq_boost_duration_ns =
 					sg_policy->tunables->fas_normal_mode_freq_boost_duration_frame * frame_time * NSEC_PER_USEC;
