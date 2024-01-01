@@ -2315,6 +2315,8 @@ static inline void set_wake_up_idle(bool enabled)
 		current->flags &= ~PF_WAKE_UP_IDLE;
 }
 
+extern inline bool is_cgroup_top_app(struct task_struct *p);
+
 #if IS_ENABLED(CONFIG_MIHW)
 extern inline bool is_critical_task(struct task_struct *p);
 

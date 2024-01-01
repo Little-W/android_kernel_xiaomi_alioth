@@ -8954,6 +8954,11 @@ void sched_exit(struct task_struct *p)
 
 __read_mostly bool sched_predl = 1;
 
+inline bool is_cgroup_top_app(struct task_struct *p)
+{
+	return p && !strcmp(p->sched_task_group->css.cgroup->kn->name, "top-app");
+}
+
 #if IS_ENABLED(CONFIG_MIHW)
 inline bool is_critical_task(struct task_struct *p)
 {
