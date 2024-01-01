@@ -2538,6 +2538,7 @@ static struct cpufreq_governor schedutil_gov = {
 };
 
 #ifdef CONFIG_SCHEDUTIL_FAS
+extern unsigned int adrenoboost;
 static void fas_boost_ctl(struct sugov_policy *sg_policy,
 			  int ui_frame_time, ktime_t cur_time)
 {
@@ -2659,7 +2660,16 @@ static void schedutil_fas_handler(
 	if(ui_frame_time > sg_cpu->sg_policy->tunables->fas_perf_mode_threshold)
 	{
 		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW,500);
+		if(adrenoboost < 3)
+		{
+			adrenoboost ++;
+		}
 	}
+	else if(adrenoboost)
+	{
+		adrenoboost --;
+	}
+	
 
 fas_handler_out:
 	put_cpu();
