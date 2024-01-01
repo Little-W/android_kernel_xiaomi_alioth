@@ -5868,6 +5868,20 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	if (retval)
 		goto out_free_new_mask;
 
+#ifdef CONFIG_SCHEDUTIL_FAS
+	if (p->fas_boosted && is_cgroup_top_app(p))
+	{
+		retval = -EPERM;
+		cpuset_cpus_allowed(p, cpus_allowed);
+		cpumask_or(&allowed_mask, cpu_perf_mask, cpu_prime_mask);
+		dest_cpu = cpumask_any_and(cpu_active_mask, &allowed_mask);
+		if (dest_cpu < nr_cpu_ids) {
+			 cpuset_cpus_allowed(p, cpus_allowed);
+		}
+		goto out_free_new_mask;
+	}
+#endif
+
 	cpuset_cpus_allowed(p, cpus_allowed);
 	cpumask_and(new_mask, in_mask, cpus_allowed);
 

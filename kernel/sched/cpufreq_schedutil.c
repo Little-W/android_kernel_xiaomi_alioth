@@ -2660,15 +2660,24 @@ static void schedutil_fas_handler(
 	if(ui_frame_time > sg_cpu->sg_policy->tunables->fas_perf_mode_threshold)
 	{
 		devfreq_boost_kick_max(DEVFREQ_CPU_LLCC_DDR_BW,500);
+		current->fas_boosted = true;
 		if(adrenoboost < 3)
 		{
 			adrenoboost ++;
 		}
 	}
-	else if(adrenoboost)
+	else 
 	{
-		adrenoboost --;
+		if(sg_cpu->sg_policy->fas_info->perf_mode_end_time <= cur_time)
+		{
+			current->fas_boosted = false;
+		}
+		if(adrenoboost)
+		{
+			adrenoboost --;
+		}
 	}
+
 	
 
 fas_handler_out:

@@ -1419,6 +1419,10 @@ struct task_struct {
 	unsigned int			cpux;
 #endif
 
+#ifdef CONFIG_SCHEDUTIL_FAS
+	bool 					fas_boosted;
+#endif
+
 #ifdef CONFIG_KASAN
 	unsigned int			kasan_depth;
 #endif
