@@ -739,7 +739,10 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
 {
 	struct proc_iface_stat_fmt_info *p = m->private;
 	struct iface_stat *iface_entry;
-	struct rtnl_link_stats64 dev_stats, *stats;
+	struct rtnl_link_stats64 *stats;
+#ifndef CONFIG_DOCKER
+	struct rtnl_link_stats64 dev_stats;
+#endif
 	struct rtnl_link_stats64 no_dev_stats = {0};
 
 
@@ -747,13 +750,16 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
 		 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
 
 	iface_entry = list_entry(v, struct iface_stat, list);
-
+#ifndef CONFIG_DOCKER
 	if (iface_entry->active) {
 		stats = dev_get_stats(iface_entry->net_dev,
 				      &dev_stats);
 	} else {
 		stats = &no_dev_stats;
 	}
+#else
+	stats = &no_dev_stats;
+#endif
 	/*
 	 * If the meaning of the data changes, then update the fmtX
 	 * string.

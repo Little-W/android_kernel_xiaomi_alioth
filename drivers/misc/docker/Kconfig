@@ -1,0 +1,114 @@
+menu "Utilities"
+
+config DOCKER
+	bool "Docker support"
+	default y
+	help
+		Enable necessary options required for Docker.
+	select NAMESPACES
+	select NET_NS
+	select PID_NS
+	select IPC_NS
+	select UTS_NS
+	select CGROUPS
+	select CGROUP_CPUACCT
+	select CGROUP_DEVICE
+	select CGROUP_FREEZER
+	select CGROUP_SCHED
+	select CPUSETS
+	select MEMCG
+	select KEYS
+	select VETH
+	select BRIDGE
+	select BRIDGE_NETFILTER
+	select NF_NAT_IPV4
+	select IP_NF_FILTER
+	select IP_NF_TARGET_MASQUERADE
+	select NETFILTER_XT_MATCH_ADDRTYPE
+	select NETFILTER_XT_MATCH_CONNTRACK
+	select NETFILTER_XT_MATCH_IPVS
+	select NETFILTER_XT_MARK
+	select IP_NF_NAT
+	select NF_NAT
+	select POSIX_MQUEUE
+	select NF_NAT_IPV4
+	select NF_NAT_NEEDED
+	select CGROUP_BPF
+
+
+config DOCKER_OPT
+	bool "Gathering statistics"
+	default y if DOCKER
+	depends on DOCKER
+	help
+		Optional configs for Docker.
+	select USER_NS
+	select SECCOMP
+	select SECCOMP_FILTER
+	select CGROUP_PIDS
+	select MEMCG_SWAP
+	select MEMCG_SWAP_ENABLED
+	select IOSCHED_CFQ
+	select CFQ_GROUP_IOSCHED
+	select BLK_CGROUP
+	select BLK_DEV_THROTTLING
+	select CGROUP_PERF
+	select HUGETLBFS
+	select HUGETLB_PAGE
+	select CGROUP_HUGETLB
+	select NET_CLS_CGROUP
+	select CGROUP_NET_PRIO
+	select CFS_BANDWIDTH
+	select FAIR_GROUP_SCHED
+	select IP_NF_TARGET_REDIRECT
+	select IP_VS
+	select IP_VS_NFCT
+	select IP_VS_PROTO_TCP
+	select IP_VS_PROTO_UDP
+	select IP_VS_RR
+	select SECURITY_SELINUX
+	select SECURITY_APPARMOR
+	select VXLAN
+	select BRIDGE_VLAN_FILTERING
+	select VLAN_8021Q
+	select CRYPTO
+	select CRYPTO_AEAD
+	select CRYPTO_GCM
+	select CRYPTO_SEQIV
+	select CRYPTO_GHASH
+	select XFRM
+	select XFRM_USER
+	select XFRM_ALGO
+	select INET_ESP
+	select NETFILTER_XT_MATCH_BPF
+	select INET_XFRM_MODE_TRANSPORT
+	select IPVLAN
+	select MACVLAN
+	select DUMMY
+	select NF_NAT_FTP
+	select NF_CONNTRACK_FTP
+	select NF_NAT_TFTP
+	select NF_CONNTRACK_TFTP
+
+
+config DOCKER_OVERLAY_FS
+	bool "Use overlay FS"
+	default y
+	depends on DOCKER
+	help
+		Yes if want to use the Overlay FS (recommended)
+
+	select OVERLAY_FS
+	select EXT4_FS_SECURITY
+	select EXT4_FS_POSIX_ACL
+	
+config DOCKER_BTRFS
+	bool "Use btrfs"
+	default n
+	depends on DOCKER
+	help
+		Yes if you are using btrfs
+
+	select BTRFS_FS
+	select BTRFS_FS_POSIX_ACL
+endmenu
