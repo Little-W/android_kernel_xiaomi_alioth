@@ -1,7 +1,5 @@
-config AIROHA_GPS
+config CONFIG_AIROHA_GPS
 	bool "Airoha GPS Support"
-	default n
+	default y
 	help
-	  Say Y here, compile Airoha GPS driver.
-
-	  If unsure, say N.
+		Airoha GPS Support
