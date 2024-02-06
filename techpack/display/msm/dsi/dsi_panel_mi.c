@@ -2555,6 +2555,30 @@ ssize_t dsi_panel_lockdown_info_read(unsigned char *plockdowninfo)
 }
 EXPORT_SYMBOL(dsi_panel_lockdown_info_read);
 
+ssize_t dsi_panel_vendor_info_read(unsigned char *plockdowninfo)
+{
+	int rc = 0;
+
+	if (!g_panel || !plockdowninfo) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+	pr_info("[%s]", g_panel->name);
+
+	if (!strcmp(g_panel->name,"xiaomi 42 02 0a video mode dual dsi cphy panel")) {
+		plockdowninfo[0] = 0x53;
+		plockdowninfo[1] = 0x42;
+	} else if (!strcmp(g_panel->name,"xiaomi 35 02 0b video mode dual dsi cphy panel")){
+		plockdowninfo[0] = 0x44;
+		plockdowninfo[1] = 0x35;
+	} else {
+		plockdowninfo[0] = 0xFF;
+		plockdowninfo[1] = 0xFF;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(dsi_panel_vendor_info_read);
 void dsi_panel_doubleclick_enable(bool on)
 {
 	g_panel->mi_cfg.tddi_doubleclick_flag = on;
