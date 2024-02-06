@@ -1,7 +1,7 @@
 /*
  * TEE driver for goodix fingerprint sensor
  * Copyright (C) 2016 Goodix
- * Copyright (C) 2021 XiaoMi, Inc.
+ * Copyright (C) 2022 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,11 +14,9 @@
  * GNU General Public License for more details.
  */
 #define DEBUG
-#define pr_fmt(fmt)     KBUILD_MODNAME ": " fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#if IS_ENABLED(CONFIG_MI_DRM_OPT)
-#define GOODIX_DRM_INTERFACE
-#endif
+#define GOODIX_DRM_INTERFACE_WA
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -47,8 +45,8 @@
 #include <linux/pm_qos.h>
 #include <linux/cpufreq.h>
 #include <linux/pm_wakeup.h>
-#if IS_ENABLED(CONFIG_MI_DRM_OPT)
 #include <drm/drm_bridge.h>
+#ifndef GOODIX_DRM_INTERFACE_WA
 #include <drm/drm_notifier_mi.h>
 #endif
 
@@ -61,23 +59,22 @@
 #include <linux/platform_device.h>
 #endif
 
-#define VER_MAJOR   1
-#define VER_MINOR   2
+#define VER_MAJOR 1
+#define VER_MINOR 2
 #define PATCH_LEVEL 1
 
 #define WAKELOCK_HOLD_TIME 2000 /* in ms */
 #define FP_UNLOCK_REJECTION_TIMEOUT (WAKELOCK_HOLD_TIME - 500)
 
-#define GF_SPIDEV_NAME			"goodix,fingerprint"
+#define GF_SPIDEV_NAME "goodix,fingerprint"
 /*device name after register in charater*/
-#define GF_DEV_NAME				"goodix_fp"
-#define GF_INPUT_NAME			"uinput-goodix" /*"goodix_fp" */
+#define GF_DEV_NAME "goodix_fp"
+#define GF_INPUT_NAME "uinput-goodix" /*"goodix_fp" */
 
-#define CHRD_DRIVER_NAME		"goodix_fp_spi"
-#define CLASS_NAME				"goodix_fp"
+#define CHRD_DRIVER_NAME "goodix_fp_spi"
+#define CLASS_NAME "goodix_fp"
 
-#define N_SPI_MINORS			32  /* ... up to 256 */
-
+#define N_SPI_MINORS 32 /* ... up to 256 */
 
 static int SPIDEV_MAJOR;
 
@@ -160,8 +157,8 @@ static long spi_clk_max_rate(struct clk *clk, unsigned long rate)
 		 * if we stepped too far, then start stepping in the other
 		 * direction with half the step size
 		 */
-		if (((cur > rate) && (step_direction > 0))
-			|| ((cur < rate) && (step_direction < 0))) {
+		if (((cur > rate) && (step_direction > 0)) ||
+		    ((cur < rate) && (step_direction < 0))) {
 			step_direction = -step_direction;
 			step_size >>= 1;
 		}
@@ -330,14 +327,14 @@ static void nav_event_input(struct gf_dev *gf_dev, gf_nav_event_t nav_event)
 		break;
 	}
 
-	if ((nav_event != GF_NAV_FINGER_DOWN) && (nav_event != GF_NAV_FINGER_UP)) {
+	if ((nav_event != GF_NAV_FINGER_DOWN) &&
+	    (nav_event != GF_NAV_FINGER_UP)) {
 		input_report_key(gf_dev->input, nav_input, 1);
 		input_sync(gf_dev->input);
 		input_report_key(gf_dev->input, nav_input, 0);
 		input_sync(gf_dev->input);
 	}
 }
-
 
 static void gf_kernel_key_input(struct gf_dev *gf_dev, struct gf_key *gf_key)
 {
@@ -354,20 +351,36 @@ static void gf_kernel_key_input(struct gf_dev *gf_dev, struct gf_key *gf_key)
 		key_input = gf_key->key;
 	}
 
-	pr_debug("%s: received key event[%d], key=%d, value=%d\n",
-		 __func__, key_input, gf_key->key, gf_key->value);
+	pr_debug("%s: received key event[%d], key=%d, value=%d\n", __func__,
+		 key_input, gf_key->key, gf_key->value);
 
-	if ((GF_KEY_POWER == gf_key->key || GF_KEY_CAMERA == gf_key->key)
-		&& (gf_key->value == 1)) {
+	if ((GF_KEY_POWER == gf_key->key || GF_KEY_CAMERA == gf_key->key) &&
+	    (gf_key->value == 1)) {
 		input_report_key(gf_dev->input, key_input, 1);
 		input_sync(gf_dev->input);
 		input_report_key(gf_dev->input, key_input, 0);
 		input_sync(gf_dev->input);
 	}
-
 	if (GF_KEY_HOME == gf_key->key) {
-		input_report_key(gf_dev->input, key_input, gf_key->value);
-		input_sync(gf_dev->input);
+		pr_debug("%s GF_KEY_HOME_enter\n", __func__);
+		if ((gf_dev->key_flag == 1) && (gf_key->value == 1)) {
+			pr_debug("%s add up\n", __func__);
+			input_report_key(gf_dev->input, key_input, 0);
+			input_sync(gf_dev->input);
+			input_report_key(gf_dev->input, key_input,
+					 gf_key->value);
+			input_sync(gf_dev->input);
+		} else {
+			input_report_key(gf_dev->input, key_input,
+					 gf_key->value);
+			input_sync(gf_dev->input);
+		}
+
+		if (gf_key->value == 1) {
+			gf_dev->key_flag = 1;
+		} else if (gf_key->value == 0) {
+			gf_dev->key_flag = 0;
+		}
 	}
 }
 
@@ -387,9 +400,11 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 
 	if (_IOC_DIR(cmd) & _IOC_READ) {
-		retval = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+		retval = !access_ok(VERIFY_WRITE, (void __user *)arg,
+				    _IOC_SIZE(cmd));
 	} else if (_IOC_DIR(cmd) & _IOC_WRITE) {
-		retval = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+		retval = !access_ok(VERIFY_READ, (void __user *)arg,
+				    _IOC_SIZE(cmd));
 	}
 
 	if (retval) {
@@ -397,10 +412,13 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 
 	if (gf_dev->device_available == 0) {
-		if ((cmd == GF_IOC_ENABLE_POWER) || (cmd == GF_IOC_DISABLE_POWER)) {
+		if ((cmd == GF_IOC_ENABLE_POWER) ||
+		    (cmd == GF_IOC_DISABLE_POWER)) {
 			pr_debug("power cmd\n");
 		} else {
-			pr_debug("get cmd %d, but sensor is power off currently.\n", _IOC_NR(cmd));
+			pr_debug(
+				"get cmd %d, but sensor is power off currently.\n",
+				_IOC_NR(cmd));
 			return -ENODEV;
 		}
 	}
@@ -409,7 +427,8 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case GF_IOC_INIT:
 		pr_debug("%s GF_IOC_INIT\n", __func__);
 
-		if (copy_to_user((void __user *)arg, (void *)&netlink_route, sizeof(u8))) {
+		if (copy_to_user((void __user *)arg, (void *)&netlink_route,
+				 sizeof(u8))) {
 			retval = -EFAULT;
 			break;
 		}
@@ -436,8 +455,10 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_INPUT_KEY_EVENT:
-		if (copy_from_user(&gf_key, (struct gf_key *)arg, sizeof(struct gf_key))) {
-			pr_debug("Failed to copy input key event from user to kernel\n");
+		if (copy_from_user(&gf_key, (struct gf_key *)arg,
+				   sizeof(struct gf_key))) {
+			pr_debug(
+				"Failed to copy input key event from user to kernel\n");
 			retval = -EFAULT;
 			break;
 		}
@@ -449,8 +470,10 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case GF_IOC_NAV_EVENT:
 		pr_debug("%s GF_IOC_NAV_EVENT\n", __func__);
 
-		if (copy_from_user(&nav_event, (gf_nav_event_t *)arg, sizeof(gf_nav_event_t))) {
-			pr_debug("Failed to copy nav event from user to kernel\n");
+		if (copy_from_user(&nav_event, (gf_nav_event_t *)arg,
+				   sizeof(gf_nav_event_t))) {
+			pr_debug(
+				"Failed to copy nav event from user to kernel\n");
 			retval = -EFAULT;
 			break;
 		}
@@ -511,7 +534,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_debug("%s GF_IOC_CHIP_INFO\n", __func__);
 
 		if (copy_from_user(&info, (struct gf_ioc_chip_info *)arg,
-					sizeof(struct gf_ioc_chip_info))) {
+				   sizeof(struct gf_ioc_chip_info))) {
 			retval = -EFAULT;
 			break;
 		}
@@ -531,13 +554,13 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 #ifdef CONFIG_COMPAT
 static long gf_compat_ioctl(struct file *filp, unsigned int cmd,
-				unsigned long arg)
+			    unsigned long arg)
 {
 	return gf_ioctl(filp, cmd, (unsigned long)compat_ptr(arg));
 }
 #endif /*CONFIG_COMPAT*/
 
-#ifdef GOODIX_DRM_INTERFACE
+#ifndef GOODIX_DRM_INTERFACE_WA
 static void notification_work(struct work_struct *work)
 {
 	pr_debug("%s unblank\n", __func__);
@@ -550,26 +573,24 @@ static irqreturn_t gf_irq(int irq, void *handle)
 	struct gf_dev *gf_dev = &gf;
 #if defined(GF_NETLINK_ENABLE)
 	char temp[4] = { 0x0 };
-	uint32_t key_input = 0;
+	//uint32_t key_input = 0;
 	temp[0] = GF_NET_EVENT_IRQ;
 	pr_debug("%s enter\n", __func__);
 	__pm_wakeup_event(fp_wakelock, WAKELOCK_HOLD_TIME);
 	sendnlmsg(temp);
 
-#if IS_ENABLED(CONFIG_MI_DRM_OPT)
-	if ((gf_dev->wait_finger_down == true) && (gf_dev->device_available == 1) &&
-		(gf_dev->fb_black == 1)) {
-		key_input = KEY_RIGHT;
+	if ((gf_dev->wait_finger_down == true) &&
+	    (gf_dev->device_available == 1) && (gf_dev->fb_black == 1)) {
+		/*key_input = KEY_RIGHT;
 		input_report_key(gf_dev->input, key_input, 1);
 		input_sync(gf_dev->input);
 		input_report_key(gf_dev->input, key_input, 0);
-		input_sync(gf_dev->input);
+		input_sync(gf_dev->input);*/
 		gf_dev->wait_finger_down = false;
 		schedule_work(&gf_dev->work);
 	}
-#endif
 
-#elif defined (GF_FASYNC)
+#elif defined(GF_FASYNC)
 	struct gf_dev *gf_dev = &gf;
 
 	if (gf_dev->async) {
@@ -587,7 +608,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 	int rc = 0;
 	int err = 0;
 	mutex_lock(&device_list_lock);
-	list_for_each_entry(gf_dev, &device_list, device_entry) {
+	list_for_each_entry (gf_dev, &device_list, device_entry) {
 		if (gf_dev->devt == inode->i_rdev) {
 			pr_debug("Found\n");
 			status = 0;
@@ -599,7 +620,8 @@ static int gf_open(struct inode *inode, struct file *filp)
 	gf_dev->vreg = regulator_get(&gf_dev->spi->dev, "fp_vdd_vreg");
 
 	if (gf_dev->vreg == NULL) {
-		dev_err(&gf_dev->spi->dev, "fp_vdd_vreg regulator get failed!\n");
+		dev_err(&gf_dev->spi->dev,
+			"fp_vdd_vreg regulator get failed!\n");
 		mutex_unlock(&device_list_lock);
 		return -EPERM;
 	}
@@ -607,10 +629,17 @@ static int gf_open(struct inode *inode, struct file *filp)
 	if (regulator_is_enabled(gf_dev->vreg)) {
 		pr_info("fp_vdd_vreg is already enabled!\n");
 	} else {
+		rc = regulator_set_load(gf_dev->vreg, 100000);
+		if (rc < 0) {
+			dev_err(&gf_dev->spi->dev,
+				"Regulator set load failed rc = %d\n", rc);
+		}
+
 		rc = regulator_enable(gf_dev->vreg);
 
 		if (rc) {
-			dev_err(&gf_dev->spi->dev, "error enabling fp_vdd_vreg!\n");
+			dev_err(&gf_dev->spi->dev,
+				"error enabling fp_vdd_vreg!\n");
 			regulator_put(gf_dev->vreg);
 			gf_dev->vreg = NULL;
 			mutex_unlock(&device_list_lock);
@@ -626,7 +655,8 @@ static int gf_open(struct inode *inode, struct file *filp)
 		rc = gpio_request(gf_dev->pwr_gpio, "goodix_pwr");
 
 		if (rc) {
-			dev_err(&gf_dev->spi->dev, "Failed to request PWR GPIO. rc = %d\n", rc);
+			dev_err(&gf_dev->spi->dev,
+				"Failed to request PWR GPIO. rc = %d\n", rc);
 			mutex_unlock(&device_list_lock);
 			err = -EPERM;
 			goto open_error1;
@@ -636,7 +666,8 @@ static int gf_open(struct inode *inode, struct file *filp)
 		rc = gpio_request(gf_dev->reset_gpio, "gpio-reset");
 
 		if (rc) {
-			dev_err(&gf_dev->spi->dev, "Failed to request RESET GPIO. rc = %d\n", rc);
+			dev_err(&gf_dev->spi->dev,
+				"Failed to request RESET GPIO. rc = %d\n", rc);
 			mutex_unlock(&device_list_lock);
 			err = -EPERM;
 			goto open_error1;
@@ -646,7 +677,8 @@ static int gf_open(struct inode *inode, struct file *filp)
 		rc = gpio_request(gf_dev->irq_gpio, "gpio-irq");
 
 		if (rc) {
-			dev_err(&gf_dev->spi->dev, "Failed to request IRQ GPIO. rc = %d\n", rc);
+			dev_err(&gf_dev->spi->dev,
+				"Failed to request IRQ GPIO. rc = %d\n", rc);
 			mutex_unlock(&device_list_lock);
 			err = -EPERM;
 			goto open_error2;
@@ -654,8 +686,8 @@ static int gf_open(struct inode *inode, struct file *filp)
 
 		gpio_direction_input(gf_dev->irq_gpio);
 		rc = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
-						IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-						"gf", gf_dev);
+					  IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					  "gf", gf_dev);
 
 		if (!rc) {
 			enable_irq_wake(gf_dev->irq);
@@ -720,6 +752,7 @@ static int gf_release(struct inode *inode, struct file *filp)
 
 	if (!gf_dev->users) {
 		pr_debug("disble_irq. irq = %d\n", gf_dev->irq);
+		gpio_direction_output(gf_dev->reset_gpio, 0);
 		gf_disable_irq(gf_dev);
 		/*power off the sensor*/
 		gf_dev->device_available = 0;
@@ -753,7 +786,7 @@ static const struct file_operations gf_fops = {
 #endif
 };
 
-#ifdef GOODIX_DRM_INTERFACE
+#ifndef GOODIX_DRM_INTERFACE_WA
 static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 					unsigned long val, void *data)
 {
@@ -766,8 +799,9 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 		return 0;
 	}
 
-	pr_debug("[info] %s go to the goodix_fb_state_chg_callback value = %d\n",
-		 __func__, (int)val);
+	pr_debug(
+		"[info] %s go to the goodix_fb_state_chg_callback value = %d\n",
+		__func__, (int)val);
 	gf_dev = container_of(nb, struct gf_dev, notifier);
 
 	if (evdata && evdata->data && val == MI_DRM_EVENT_BLANK && gf_dev) {
@@ -781,10 +815,11 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 #if defined(GF_NETLINK_ENABLE)
 				temp[0] = GF_NET_EVENT_FB_BLACK;
 				sendnlmsg(temp);
-#elif defined (GF_FASYNC)
+#elif defined(GF_FASYNC)
 
 				if (gf_dev->async) {
-					kill_fasync(&gf_dev->async, SIGIO, POLL_IN);
+					kill_fasync(&gf_dev->async, SIGIO,
+						    POLL_IN);
 				}
 
 #endif
@@ -797,10 +832,11 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 #if defined(GF_NETLINK_ENABLE)
 				temp[0] = GF_NET_EVENT_FB_UNBLACK;
 				sendnlmsg(temp);
-#elif defined (GF_FASYNC)
+#elif defined(GF_FASYNC)
 
 				if (gf_dev->async) {
-					kill_fasync(&gf_dev->async, SIGIO, POLL_IN);
+					kill_fasync(&gf_dev->async, SIGIO,
+						    POLL_IN);
 				}
 
 #endif
@@ -811,7 +847,7 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 		default:
 			pr_debug("%s defalut\n", __func__);
 			break;
-	}
+		}
 	}
 
 	return NOTIFY_OK;
@@ -844,9 +880,9 @@ static int gf_probe(struct platform_device *pdev)
 	gf_dev->reset_gpio = -EINVAL;
 	gf_dev->pwr_gpio = -EINVAL;
 	gf_dev->device_available = 0;
-#if IS_ENABLED(CONFIG_MI_DRM_OPT)
 	gf_dev->fb_black = 0;
 	gf_dev->wait_finger_down = false;
+#ifndef GOODIX_DRM_INTERFACE_WA
 	INIT_WORK(&gf_dev->work, notification_work);
 #endif
 
@@ -864,7 +900,7 @@ static int gf_probe(struct platform_device *pdev)
 		struct device *dev;
 		gf_dev->devt = MKDEV(SPIDEV_MAJOR, minor);
 		dev = device_create(gf_class, &gf_dev->spi->dev, gf_dev->devt,
-					gf_dev, GF_DEV_NAME);
+				    gf_dev, GF_DEV_NAME);
 		status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
 	} else {
 		dev_dbg(&gf_dev->spi->dev, "no minor number available!\n");
@@ -887,13 +923,15 @@ static int gf_probe(struct platform_device *pdev)
 		gf_dev->input = input_allocate_device();
 
 		if (gf_dev->input == NULL) {
-			pr_err("%s, failed to allocate input device\n", __func__);
+			pr_err("%s, failed to allocate input device\n",
+			       __func__);
 			status = -ENOMEM;
 			goto error_dev;
 		}
 
 		for (i = 0; i < ARRAY_SIZE(maps); i++) {
-			input_set_capability(gf_dev->input, maps[i].type, maps[i].code);
+			input_set_capability(gf_dev->input, maps[i].type,
+					     maps[i].code);
 		}
 
 		gf_dev->input->name = GF_INPUT_NAME;
@@ -919,7 +957,7 @@ static int gf_probe(struct platform_device *pdev)
 
 	spi_clock_set(gf_dev, 1000000);
 #endif
-#ifdef GOODIX_DRM_INTERFACE
+#ifndef GOODIX_DRM_INTERFACE_WA
 	gf_dev->notifier = goodix_noti_block;
 	mi_drm_register_client(&gf_dev->notifier);
 #endif
@@ -985,7 +1023,7 @@ static int gf_remove(struct platform_device *pdev)
 		gf_cleanup(gf_dev);
 	}
 
-#ifdef GOODIX_DRM_INTERFACE
+#ifndef GOODIX_DRM_INTERFACE_WA
 	mi_drm_unregister_client(&gf_dev->notifier);
 #endif
 	mutex_unlock(&device_list_lock);

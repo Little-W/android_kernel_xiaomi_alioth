@@ -7,4 +7,3 @@ config FINGERPRINT_GOODIX_FOD
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here.
-

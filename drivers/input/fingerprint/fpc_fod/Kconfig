@@ -8,4 +8,3 @@ config FINGERPRINT_FPC_FOD
 	help
 		If you say yes here you get IRQ support for the FPC1020 family
 		of fingerprint sensors from Fingerprint Cards (FPC).
-
