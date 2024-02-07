@@ -1,10 +1,40 @@
-menu "Utilities"
+menu "Android Docker Support"
 
 config DOCKER
 	bool "Docker support"
 	default y
 	help
-		Enable necessary options required for Docker.
+		Enable options required for Docker.
+
+	select PROC_PID_CPUSET
+	select NET
+	select NETDEVICES
+	select NET_CORE
+	select INET
+	select IPV6
+	select NET_L3_MASTER_DEV
+	select NETFILTER
+	select NETFILTER_ADVANCED
+	select NF_CONNTRACK
+	select NETFILTER_XTABLES
+	select NF_CONNMARK_IPV4
+	select IP_NF_IPTABLES
+	select NF_NAT_MASQUERADE_IPV4
+	select IP_NF_NAT
+	select IP_NF_TARGET_NETMAP # TODO: required?
+	select IP_NF_TARGET_REDIRECT # TODO: required?
+	select NET_SCHED
+	select CGROUP_NET_PRIO
+	select CGROUP_NET_CLASSID
+	select MD
+	select TTY
+	select UNIX98_PTYS
+	select HUGETLBFS # TODO: overlay?
+	select PERSISTENT_KEYRINGS # TODO: required?
+	select ENCRYPTED_KEYS # TODO: required?
+	select KEY_DH_OPERATIONS # TODO: required?
+
+	# From ebuild
 	select NAMESPACES
 	select NET_NS
 	select PID_NS
@@ -26,70 +56,115 @@ config DOCKER
 	select IP_NF_TARGET_MASQUERADE
 	select NETFILTER_XT_MATCH_ADDRTYPE
 	select NETFILTER_XT_MATCH_CONNTRACK
-	select NETFILTER_XT_MATCH_IPVS
-	select NETFILTER_XT_MARK
-	select IP_NF_NAT
 	select NF_NAT
-	select POSIX_MQUEUE
-	select NF_NAT_IPV4
 	select NF_NAT_NEEDED
-	select CGROUP_BPF
+	select POSIX_MQUEUE
+	select USER_NS
+	select SECCOMP
+	select CGROUP_PIDS
+	select BLK_DEV_THROTTLING
+	select CFQ_GROUP_IOSCHED
+	select CGROUP_HUGETLB
+	select NET_CLS_CGROUP
+	select FAIR_GROUP_SCHED
+	select RT_GROUP_SCHED
+	select IP_VS
+	select IP_VS_PROTO_TCP
+	select IP_VS_PROTO_UDP
+	select IP_VS_NFCT
+	select VXLAN
+	select IPVLAN
+	select MACVLAN
+	select DUMMY
+	select DEVPTS_MULTIPLE_INSTANCES
+	select MEMCG_KMEM
+        select NETFILTER_XT_MATCH_IPVS
+        select IP_VS_RR
+        select SECURITY_APPARMOR
+	select VLAN_8021Q
+        select BRIDGE_VLAN_FILTERING
+        #select IP6_NF_TARGET_MASQUERADE
+        select NETFILTER_XT_TARGET_CHECKSUM
+        select FHANDLE
+        select UNIX_DIAG
+        select PACKET_DIAG
+        select NETLINK_DIAG
+        select CHECKPOINT_RESTORE
+        select NETFILTER_XT_MATCH_CGROUP
 
 
-config DOCKER_OPT
+
+
+config DOCKER_STATISTICS
 	bool "Gathering statistics"
 	default y if DOCKER
 	depends on DOCKER
 	help
-		Optional configs for Docker.
-	select USER_NS
-	select SECCOMP
-	select SECCOMP_FILTER
-	select CGROUP_PIDS
+		Allow gathering statistics from running containers
+
+	select RESOURCE_COUNTERS
+	select BLK_CGROUP
+	select IOSCHED_CFQ
+	select CGROUP_PERF
+	select CFS_BANDWIDTH
+
+## Required kernel version: 4.5
+
+
+config DOCKER_SWAP
+	bool "Enable swap limit"
+	default n
+	depends on DOCKER
+	help
+		Yes if you want to be able to limit swap usage of containers
+
 	select MEMCG_SWAP
 	select MEMCG_SWAP_ENABLED
-	select IOSCHED_CFQ
-	select CFQ_GROUP_IOSCHED
-	select BLK_CGROUP
-	select BLK_DEV_THROTTLING
-	select CGROUP_PERF
-	select HUGETLBFS
-	select HUGETLB_PAGE
-	select CGROUP_HUGETLB
-	select NET_CLS_CGROUP
-	select CGROUP_NET_PRIO
-	select CFS_BANDWIDTH
-	select FAIR_GROUP_SCHED
-	select IP_NF_TARGET_REDIRECT
-	select IP_VS
-	select IP_VS_NFCT
-	select IP_VS_PROTO_TCP
-	select IP_VS_PROTO_UDP
-	select IP_VS_RR
-	select SECURITY_SELINUX
-	select SECURITY_APPARMOR
-	select VXLAN
-	select BRIDGE_VLAN_FILTERING
-	select VLAN_8021Q
-	select CRYPTO
-	select CRYPTO_AEAD
-	select CRYPTO_GCM
-	select CRYPTO_SEQIV
-	select CRYPTO_GHASH
-	select XFRM
-	select XFRM_USER
-	select XFRM_ALGO
-	select INET_ESP
-	select NETFILTER_XT_MATCH_BPF
-	select INET_XFRM_MODE_TRANSPORT
-	select IPVLAN
-	select MACVLAN
-	select DUMMY
-	select NF_NAT_FTP
-	select NF_CONNTRACK_FTP
-	select NF_NAT_TFTP
-	select NF_CONNTRACK_TFTP
 
+config DOCKER_SECURE_NETWORKS
+	bool "Secure networks"
+	default y if DOCKER
+	depends on DOCKER
+	help
+		Yes if you use secure networks
+
+	select XFRM_ALGO
+	select XFRM_USER
+
+
+config DOCKER_AUFS
+	bool "Use aufs"
+	default y if DOCKER
+	depends on DOCKER
+	help
+		Yes if you are using aufs
+
+	select AUFS_FS
+	select EXT4_FS_POSIX_ACL
+	select EXT4_FS_SECURITY
+
+config DOCKER_BTRFS
+	bool "Use btrfs"
+	default n
+	depends on DOCKER
+	help
+		Yes if you are using btrfs
+
+	select BTRFS_FS
+	select BTRFS_FS_POSIX_ACL
+
+config DOCKER_DEVICE_MAPPER
+	bool "Device Mapper support"
+	default y if DOCKER
+	depends on DOCKER
+	help
+		Yes if you want support for device mapper (recommended)
+
+	select BLK_DEV_DM
+	select DM_THIN_PROVISIONING
+	select EXT4_FS
+	select EXT4_FS_POSIX_ACL
+	select EXT4_FS_SECURITY
 
 config DOCKER_OVERLAY_FS
 	bool "Use overlay FS"
@@ -101,14 +176,5 @@ config DOCKER_OVERLAY_FS
 	select OVERLAY_FS
 	select EXT4_FS_SECURITY
 	select EXT4_FS_POSIX_ACL
-	
-config DOCKER_BTRFS
-	bool "Use btrfs"
-	default n
-	depends on DOCKER
-	help
-		Yes if you are using btrfs
 
-	select BTRFS_FS
-	select BTRFS_FS_POSIX_ACL
 endmenu
