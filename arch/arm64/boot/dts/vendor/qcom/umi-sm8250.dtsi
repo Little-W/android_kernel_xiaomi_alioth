@@ -7,26 +7,6 @@ And public attribution of xiaomi platforms(like J2 and so and)
 #include "xiaomi-sm8250-common.dtsi"
 #include "umi-audio-overlay.dtsi"
 
-// SLPI Memory Region
-&pil_slpi_mem {
-	reg = <0x0 0x88c00000 0x0 0x1500000>;
-};
-
-// ADSP Memory Region
-&pil_adsp_mem {
-	reg = <0x0 0x8a100000 0x0 0x2500000>;
-};
-
-// SPSS Memory Region
-&pil_spss_mem {
-	reg = <0x0 0x8c600000 0x0 0x100000>;
-};
-
-// CDSP Memory Region
-&cdsp_secure_heap {
-	reg = <0x0 0x8c700000 0x0 0x4600000>;
-};
-
 &ufshc_mem {
 	qcom,disable-lpm;
 };
@@ -263,7 +243,7 @@ And public attribution of xiaomi platforms(like J2 and so and)
 		fts,fod-x-size = <238>;
 		fts,fod-y-size = <238>;
 		fts,default-fw-name = "st_fts_j2.ftb";
-		fts,config-array-size = <2>;
+		fts,config-array-size = <3>;
 		fts,dump-click-count;
 		fts,support-fod;
 		fts,touch-up-threshold-min = <40>;
@@ -317,6 +297,12 @@ And public attribution of xiaomi platforms(like J2 and so and)
 			fts,tp-vendor = <0x42>;
 			fts,tp-module = <1>;
 			fts,fw-name = "st_fts_j2_2.ftb";
+			fts,limit-name = "stm_fts_production_limits_2.csv";
+		};
+		fts,cfg_2{
+			fts,tp-vendor = <0x42>;
+			fts,tp-module = <2>;
+			fts,fw-name = "st_fts_j2_3.ftb";
 			fts,limit-name = "stm_fts_production_limits_2.csv";
 		};
 	};
@@ -382,7 +368,7 @@ And public attribution of xiaomi platforms(like J2 and so and)
 	qcom,chg-term-src = <1>;
 	qcom,chg-term-current-ma = <(-220)>;
 	qcom,sw-jeita-enable;
-	qcom,chg-warm-th= <450>;
+	qcom,chg-warm-th= <500>;
 	qcom,chg-cool-th= <150>;
 	//qcom,suspend-input-on-debug-batt;
 	mi,ncp-enable = <&tlmm 152 0x00>;
@@ -410,6 +396,7 @@ And public attribution of xiaomi platforms(like J2 and so and)
 	qcom,disable-suspend-on-collapse;
 	qcom,distinguish-qc-class-ab;
 	qcom,support-conn-therm;
+	qcom,support-ext-5v-boost;
 	vbus-disable-gpio = <&tlmm 8 GPIO_ACTIVE_HIGH>;
 	io-channels = <&pm8150b_vadc ADC_USB_IN_V_16>,
 			<&pm8150b_vadc ADC_MID_CHG_DIV6>,
@@ -534,7 +521,7 @@ And public attribution of xiaomi platforms(like J2 and so and)
 		mi,qc3-bat-curr-max = <3600>;
 		mi,qc3-bus-volt-max = <12000>;
 		mi,qc3-bus-curr-max = <2100>;
-		mi,qc3-battery-warm-th = <450>;
+		mi,qc3-battery-warm-th = <500>;
 		mi,use-qcom-gauge;
 		//mi,cp-sec-enable;
 	};
@@ -548,9 +535,10 @@ And public attribution of xiaomi platforms(like J2 and so and)
 		mi,pd-bus-curr-max = <3000>;
 		mi,pd-non-ffc-bat-volt-max = <4400>;
 		mi,pd-bus-curr-compensate  = <0>;
-		mi,pd-battery-warm-th = <450>;
+		mi,pd-battery-warm-th = <500>;
 		mi,use-qcom-gauge;
 		//mi,cp-sec-enable;
+		mi,pd-power-max = <33>; /*charge power max : 33W */
 	};
 
 	wc_dc {
@@ -733,6 +721,7 @@ And public attribution of xiaomi platforms(like J2 and so and)
 &pm8150b_pdphy {
 	vbus-supply = <&ext_5v_boost>;
 	mi,non-qcom-pps-ctrl;
+	mi,pd-power-max = <33>; /*charge power max : 33W */
 };
 
 &smb1390 {

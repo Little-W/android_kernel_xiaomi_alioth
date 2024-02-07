@@ -353,12 +353,6 @@
 			no-map;
 		};
 
-		reserved_xbl_uefi_log: res_xbl_uefi_log_region@80880000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x80880000 0x0 0x14000>;
-		};
-
 		sec_apps_mem: sec_apps_region@808ff000 {
 			compatible = "removed-dma-pool";
 			no-map;
@@ -535,7 +529,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 earlycon=msm_geni_serial,0x888000 kpti=off";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7";
 	};
 
 	soc: soc { };
@@ -1425,7 +1419,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU0>;
-		status = "disabled";
 	};
 
 	jtag_mm1: jtagmm@7140000 {
@@ -1437,7 +1430,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU1>;
-		status = "disabled";
 	};
 
 	jtag_mm2: jtagmm@7240000 {
@@ -1449,7 +1441,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU2>;
-		status = "disabled";
 	};
 
 	jtag_mm3: jtagmm@7340000 {
@@ -1461,7 +1452,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU3>;
-		status = "disabled";
 	};
 
 	jtag_mm4: jtagmm@7440000 {
@@ -1473,7 +1463,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU4>;
-		status = "disabled";
 	};
 
 	jtag_mm5: jtagmm@7540000 {
@@ -1485,7 +1474,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU5>;
-		status = "disabled";
 	};
 
 	jtag_mm6: jtagmm@7640000 {
@@ -1497,7 +1485,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU6>;
-		status = "disabled";
 	};
 
 	jtag_mm7: jtagmm@7740000 {
@@ -1509,7 +1496,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU7>;
-		status = "disabled";
 	};
 
 	keepalive_opp_table: keepalive-opp-table {
@@ -1606,7 +1592,6 @@
 		compatible = "qcom,aop-qmp-clk";
 		mboxes = <&qmp_aop 0>;
 		mbox-names = "qdss_clk";
-		qcom,clk-stop-bimc-log;
 		#clock-cells = <1>;
 	};
 
@@ -2136,7 +2121,7 @@
 		#mbox-cells = <2>;
 	};
 
-	llcc: cache-controller@9200000 {
+	cache-controller@9200000 {
 		compatible = "qcom,llcc-v1";
 		reg = <0x9200000 0xd0000> , <0x9600000 0x50000>;
 		reg-names = "llcc_base", "llcc_broadcast_base";
@@ -2473,21 +2458,6 @@
 		clk_reg {
 			qcom,dump-size = <0x1000>;
 			qcom,dump-id = <0x163>;
-		};
-
-		osm_reg {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x163>;
-		};
-
-		pcu_reg {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x164>;
-		};
-
-		fsm_data {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x165>;
 		};
 	};
 

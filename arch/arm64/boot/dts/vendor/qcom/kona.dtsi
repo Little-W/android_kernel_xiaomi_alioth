@@ -71,7 +71,7 @@
 			next-level-cache = <&L2_0>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <100>;
+			dynamic-power-coefficient = <205>;
 			#cooling-cells = <2>;
 			L2_0: l2-cache {
 			      compatible = "arm,arch-cache";
@@ -102,7 +102,7 @@
 			next-level-cache = <&L2_1>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <100>;
+			dynamic-power-coefficient = <205>;
 			L2_1: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -127,7 +127,7 @@
 			next-level-cache = <&L2_2>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <100>;
+			dynamic-power-coefficient = <205>;
 			L2_2: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -152,7 +152,7 @@
 			next-level-cache = <&L2_3>;
 			qcom,freq-domain = <&cpufreq_hw 0 4>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <100>;
+			dynamic-power-coefficient = <205>;
 			L2_3: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -176,8 +176,8 @@
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_4>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
-			capacity-dmips-mhz = <1894>;
-			dynamic-power-coefficient = <514>;
+			capacity-dmips-mhz = <1022>;
+			dynamic-power-coefficient = <379>;
 			#cooling-cells = <2>;
 			L2_4: l2-cache {
 			      compatible = "arm,arch-cache";
@@ -202,8 +202,8 @@
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_5>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
-			capacity-dmips-mhz = <1894>;
-			dynamic-power-coefficient = <514>;
+			capacity-dmips-mhz = <1022>;
+			dynamic-power-coefficient = <379>;
 			L2_5: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -227,8 +227,8 @@
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_6>;
 			qcom,freq-domain = <&cpufreq_hw 1 4>;
-			capacity-dmips-mhz = <1894>;
-			dynamic-power-coefficient = <514>;
+			capacity-dmips-mhz = <1022>;
+			dynamic-power-coefficient = <379>;
 			L2_6: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -252,8 +252,8 @@
 			cpu-release-addr = <0x0 0x90000000>;
 			next-level-cache = <&L2_7>;
 			qcom,freq-domain = <&cpufreq_hw 2 4>;
-			capacity-dmips-mhz = <1894>;
-			dynamic-power-coefficient = <598>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <465>;
 			#cooling-cells = <2>;
 			L2_7: l2-cache {
 			      compatible = "arm,arch-cache";
@@ -347,7 +347,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off cgroup_disable=pressure";
+		bootargs = "noirqdebug nodebugmon rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off cgroup_disable=pressure";
 	};
 
 	firmware: firmware {
@@ -778,7 +778,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU0>;
-		status = "disabled";
 	};
 
 	jtag_mm1: jtagmm@7140000 {
@@ -790,7 +789,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU1>;
-		status = "disabled";
 	};
 
 	jtag_mm2: jtagmm@7240000 {
@@ -802,7 +800,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU2>;
-		status = "disabled";
 	};
 
 	jtag_mm3: jtagmm@7340000 {
@@ -814,7 +811,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU3>;
-		status = "disabled";
 	};
 
 	jtag_mm4: jtagmm@7440000 {
@@ -826,7 +822,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU4>;
-		status = "disabled";
 	};
 
 	jtag_mm5: jtagmm@7540000 {
@@ -838,7 +833,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU5>;
-		status = "disabled";
 	};
 
 	jtag_mm6: jtagmm@7640000 {
@@ -850,7 +844,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU6>;
-		status = "disabled";
 	};
 
 	jtag_mm7: jtagmm@7740000 {
@@ -862,7 +855,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU7>;
-		status = "disabled";
 	};
 
 	qcom,devfreq-l3 {
@@ -2467,7 +2459,6 @@
 		#clock-cells = <1>;
 		mboxes = <&qmp_aop 0>;
 		mbox-names = "qdss_clk";
-		qcom,clk-stop-bimc-log;
 	};
 
 	clock_gcc: qcom,gcc@100000 {
@@ -4660,21 +4651,6 @@
 			qcom,dump-size = <0x1000>;
 			qcom,dump-id = <0x104>;
 		};
-
-		osm_reg {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x163>;
-		};
-
-		pcu_reg {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x164>;
-		};
-
-		fsm_data {
-			qcom,dump-size = <0x400>;
-			qcom,dump-id = <0x165>;
-		};
 	};
 
 	qcom_tzlog: tz-log@146bf720 {
@@ -4864,8 +4840,6 @@
 		      <0xb2e5510 0x5c0>;
 		reg-names = "smmu_iova_ipa", "tcs_cmd";
 		wlan-en-gpio = <&tlmm 20 0>;
-		qcom,bt-en-gpio = <&tlmm 21 0>;
-		qcom,sw-ctrl-gpio = <&tlmm 124 0>;
 		pinctrl-names = "wlan_en_active", "wlan_en_sleep";
 		pinctrl-0 = <&cnss_wlan_en_active>;
 		pinctrl-1 = <&cnss_wlan_en_sleep>;
@@ -5111,24 +5085,19 @@
 
 	qfprom: qfprom@780000 {
 		compatible = "qcom,qfprom";
-		reg = <0x00780000 0x5000>;
+		reg = <0x00784000 0x3000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		read-only;
 		ranges;
 
-		gpu_lm_efuse: gpu_lm_efuse@45c8 {
-			reg = <0x45c8 0x4>;
+		gpu_lm_efuse: gpu_lm_efuse@5c8 {
+			reg = <0x5c8 0x4>;
 		};
 
-		gpu_speed_bin: gpu_speed_bin@419b {
-			reg = <0x419b 0x1>;
+		gpu_speed_bin: gpu_speed_bin@19b {
+			reg = <0x19b 0x1>;
 			bits = <5 3>;
-		};
-
-		thermal_speed_bin: thermal-speed-bin@1a2 {
-			reg = <0x1a2 0x1>;
-			bits = <7 1>;
 		};
 	};
 };

@@ -1,5 +1,6 @@
 /*
-this file is for attribution only of enuma
+this file is for attribution only of umi
+And public attribution of xiaomi platforms(like enuma and so and)
 */
 
 #include "enuma-pinctrl.dtsi"
@@ -83,6 +84,14 @@ this file is for attribution only of enuma
 		status = "ok";
 	};
 
+	md_testing_mode {
+		compatible = "modem,md-testing-mode";
+		status-gpio = <&tlmm 111 0x00>;
+		debounce-time = <30>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ant1_ctrl_irq>;
+	};
+
 };
 
 &qupv3_se2_spi {
@@ -95,10 +104,11 @@ this file is for attribution only of enuma
 
 &usb1 {
 	status = "ok";
-};
+	qcom,ignore-wakeup-src-in-hostmode;
 
-&dwc1 {
-	dr_mode = "host";
+	dwc3@a800000 {
+		dr_mode = "host";
+	};
 };
 
 &usb2_phy1 {
@@ -276,6 +286,7 @@ this file is for attribution only of enuma
 
 &qupv3_se4_spi {
 	status = "ok";
+	qcom,rt;
 	pinctrl-0 = <&qupv3_se4_spi_active>;
 	pinctrl-1 = <&qupv3_se4_spi_sleep>;
 	novatek@0 {
@@ -308,8 +319,8 @@ this file is for attribution only of enuma
 		novatek,config-array-size = <1>;
 		novatek,cfg_0 {
 			novatek,display-maker = <0x42>;
-			novatek,fw-name = "novatek_nt36523_fw01.bin";
-			novatek,mp-name = "novatek_nt36523_mp01.bin";
+			novatek,fw-name = "novatek_nt36523_k81_fw01.bin";
+			novatek,mp-name = "novatek_nt36523_k81_mp01.bin";
 		};
 	};
 };
@@ -889,7 +900,7 @@ this file is for attribution only of enuma
 	qcom,chg-term-current-ma = <(-180)>;
 	qcom,step-charging-enable;
 	qcom,sw-jeita-enable;
-	qcom,chg-warm-th= <480>;
+	qcom,chg-warm-th= <500>;
 	qcom,chg-cool-th= <150>;
 	//qcom,suspend-input-on-debug-batt;
 	qcom,usbpd-phandle = <&pm8150b_pdphy>;
@@ -975,9 +986,10 @@ this file is for attribution only of enuma
 		mi,qc3-bat-curr-max = <3600>;
 		mi,qc3-bus-volt-max = <12000>;
 		mi,qc3-bus-curr-max = <2100>;
-		mi,qc3-battery-warm-th = <480>;
+		mi,qc3-battery-warm-th = <500>;
 		mi,support-qc3p5-without-smb;
 		mi,cp-sec-enable;
+		mi,chg-enable-k81;
 	};
 
 	usbpd_pm {
@@ -989,7 +1001,7 @@ this file is for attribution only of enuma
 		mi,pd-bus-curr-max = <6200>;
 		mi,pd-bus-curr-compensate  = <50>;
 		mi,pd-non-ffc-bat-volt-max = <4450>;
-		mi,pd-battery-warm-th = <480>;
+		mi,pd-battery-warm-th = <500>;
 		mi,cp-sec-enable;
 		mi,therm-level-threshold = <12>;
 		mi,step-charge-high-vol-curr-max = <6720>;
@@ -998,6 +1010,7 @@ this file is for attribution only of enuma
 		//mi,cell-vol-high-threshold-mv = <4448>;
 		//mi,cell-vol-max-threshold-mv = <4477>;
 		mi,chg-enable-k81;
+		mi,pd-power-max = <67>; /*charge power max : 67W */
 	};
 
 	dual-FuelGauge{
@@ -1031,6 +1044,7 @@ this file is for attribution only of enuma
 
 &pm8150b_pdphy {
 	mi,non-qcom-pps-ctrl;
+	mi,pd-power-max = <67>; /*charge power max : 67W */
 };
 
 &smb1390 {

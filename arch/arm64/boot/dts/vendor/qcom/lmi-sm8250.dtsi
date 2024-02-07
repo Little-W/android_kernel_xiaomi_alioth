@@ -251,11 +251,11 @@ And public attribution of xiaomi platforms(like J1 and so and)
 	qcom,chg-term-current-ma = <(-220)>;
 	//qcom,step-charging-enable;
 	qcom,sw-jeita-enable;
-	qcom,chg-warm-th= <480>;
+	qcom,chg-warm-th= <500>;
 	qcom,chg-cool-th= <150>;
 	//qcom,suspend-input-on-debug-batt;
 	qcom,usbpd-phandle = <&pm8150b_pdphy>;
-	qcom,battery-data = <&lmi_batterydata>;
+	qcom,battery-data = <&umi_batterydata>;
 	mi,six-pin-step-chg-params = <4250000  6000000
 				4450000  5400000
 				4480000  3680000>;
@@ -325,7 +325,7 @@ And public attribution of xiaomi platforms(like J1 and so and)
 };
 
 &pm8150b_fg {
-	qcom,battery-data = <&lmi_batterydata>;
+	qcom,battery-data = <&umi_batterydata>;
 	qcom,rapid-soc-dec-en;
 	qcom,five-pin-battery;
 	qcom,soc-hi-res;
@@ -368,7 +368,7 @@ And public attribution of xiaomi platforms(like J1 and so and)
 		mi,qc3-bat-curr-max = <3600>;
 		mi,qc3-bus-volt-max = <12000>;
 		mi,qc3-bus-curr-max = <2100>;
-		mi,qc3-battery-warm-th = <480>;
+		mi,qc3-battery-warm-th = <500>;
 		mi,use-qcom-gauge;
 		//mi,cp-sec-enable;
 	};
@@ -382,12 +382,13 @@ And public attribution of xiaomi platforms(like J1 and so and)
 		mi,pd-bus-curr-max = <3000>;
 		mi,pd-bus-curr-compensate  = <0>;
 		mi,pd-non-ffc-bat-volt-max = <4450>;
-		mi,pd-battery-warm-th = <480>;
+		mi,pd-battery-warm-th = <500>;
 		mi,use-qcom-gauge;
 		//mi,cp-sec-enable;
+		mi,pd-power-max = <33>; /*charge power max : 33W */
 	};
 
-	lmi_batterydata: qcom,battery-data {
+	umi_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
 		#include "fg-gen4-batterydata-lmi-sun-4700mah.dtsi"
 	};
@@ -415,6 +416,7 @@ And public attribution of xiaomi platforms(like J1 and so and)
 
 &pm8150b_pdphy {
 	mi,non-qcom-pps-ctrl;
+	mi,pd-power-max = <33>; /*charge power max : 33W */
 };
 
 &smb1390 {

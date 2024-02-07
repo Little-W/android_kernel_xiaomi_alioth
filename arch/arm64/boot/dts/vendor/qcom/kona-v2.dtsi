@@ -6,6 +6,26 @@
 	qcom,msm-id = <356 0x20000>;
 };
 
+&CPU0 {
+	capacity-dmips-mhz = <448>;
+	dynamic-power-coefficient = <49>;
+};
+
+&CPU1 {
+	capacity-dmips-mhz = <448>;
+	dynamic-power-coefficient = <49>;
+};
+
+&CPU2 {
+	capacity-dmips-mhz = <448>;
+	dynamic-power-coefficient = <49>;
+};
+
+&CPU3 {
+	capacity-dmips-mhz = <448>;
+	dynamic-power-coefficient = <49>;
+};
+
 &CPU4 {
 	dynamic-power-coefficient = <533>;
 };

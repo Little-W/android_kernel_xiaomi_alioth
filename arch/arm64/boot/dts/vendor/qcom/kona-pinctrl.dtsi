@@ -424,7 +424,6 @@
 			};
 		};
 
-
 		qupv3_se17_4uart_pins: qupv3_se17_4uart_pins {
 			qupv3_se17_ctsrx: qupv3_se17_ctsrx {
 				mux {
@@ -2406,7 +2405,7 @@
 			config {
 				pins = "gpio94";
 				bias-disable; /* No PULL */
-				drive-strength = <8>; /* 8 MA */
+				drive-strength = <4>; /* 4 MA */
 			};
 		};
 
@@ -2420,7 +2419,7 @@
 			config {
 				pins = "gpio94";
 				bias-pull-down; /* PULL DOWN */
-				drive-strength = <8>; /* 8 MA */
+				drive-strength = <4>; /* 4 MA */
 			};
 		};
 
